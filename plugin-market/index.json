@@ -24,7 +24,7 @@
           "source": {
             "type": "git",
             "url": "https://github.com/Mathilde1214/synapsis",
-            "commit": "dc2c0cd96e3abf9abf292a8508255557d55d4d67"
+            "commit": "4c9061038aa2116c030803770cc1ea229fbd3743"
           },
           "engines": { "dsh": ">=0.2.2-rc.1 <0.3.0" }
         }
