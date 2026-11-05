@@ -260,25 +260,46 @@ function createMindMap(React) {
     '--sn-shadow-float:var(--dsw-elevation-prominent,0 10px 30px rgba(60,44,26,.18));',
     '--sn-shadow-panel:var(--dsw-elevation-panel,0 8px 24px rgba(60,44,26,.16));',
     '}',
+    /* 纸的两套调色板写死在这里，不再跟着宿主 token 走：
+       深色宿主里的 label token 是浅色的，落到米黄纸上就成了「白字白底」。
+       用户还可以在「设置」里覆盖其中几项（内联 style 优先级更高）。 */
+    '.sn-root[data-theme="light"]{',
+    '--sn-paper:#f4efe3;--sn-paper-2:#fbf7ec;--sn-surface:#fffdf6;--sn-surface-focus:#fffaf0;',
+    '--sn-ink:#2f2a24;--sn-ink-2:#4a4034;--sn-ink-3:#8c8071;',
+    '--sn-line:rgba(86,68,45,.24);--sn-line-2:rgba(120,100,70,.16);--sn-line-strong:rgba(120,88,52,.5);',
+    '--sn-accent:#9a6b3f;--sn-accent-soft:rgba(154,107,63,.24);',
+    '--sn-amber:#b2782a;--sn-teal:#208a78;--sn-rose:#b43c60;--sn-dot:#bfad90;',
+    '--sn-shadow-card:0 1px 0 rgba(255,255,255,.7) inset,0 2px 6px rgba(70,55,35,.10);',
+    '--sn-shadow-sel:0 0 0 2px rgba(154,107,63,.24),0 4px 14px rgba(70,55,35,.18);',
+    '}',
+    '.sn-root[data-theme="dark"]{',
+    '--sn-paper:#1c1a17;--sn-paper-2:#211e1a;--sn-surface:#241f1a;--sn-surface-focus:#2a241d;',
+    '--sn-ink:#efe7d8;--sn-ink-2:#d6c9b4;--sn-ink-3:#a1917b;',
+    '--sn-line:rgba(210,190,160,.22);--sn-line-2:rgba(210,190,160,.14);--sn-line-strong:rgba(210,190,160,.42);',
+    '--sn-accent:#c99b62;--sn-accent-soft:rgba(201,155,98,.26);',
+    '--sn-amber:#d9a253;--sn-teal:#4fb3a0;--sn-rose:#d4738f;--sn-dot:#6b5f4e;',
+    '--sn-shadow-card:0 1px 0 rgba(255,255,255,.04) inset,0 2px 8px rgba(0,0,0,.42);',
+    '--sn-shadow-sel:0 0 0 2px rgba(201,155,98,.34),0 6px 18px rgba(0,0,0,.5);',
+    '}',
     '.sn-root{position:relative;display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden;',
-    'background:var(--dsw-alias-bg-base,#f4efe3);color:var(--dsw-alias-label-primary,#2f2a24);',
-    "font-family:'KaiTi','STKaiti','Kaiti SC','Songti SC',serif;}",
+    'background:var(--sn-paper,#f4efe3);color:var(--sn-ink,#2f2a24);',
+    'font-family:var(--sn-font,"KaiTi","STKaiti","Kaiti SC","Songti SC",serif);font-size:var(--sn-font-size,14px);}',
     '.sn-topbar{position:relative;z-index:6;display:flex;align-items:center;gap:10px;flex:none;height:42px;padding:0 12px;',
-    'border-bottom:1px solid var(--dsw-alias-border-l1,rgba(90,75,55,.18));',
-    'background:var(--dsw-alias-bg-layer-1,rgba(255,253,246,.9));}',
+    'border-bottom:1px solid var(--sn-line-2,rgba(120,100,70,.16));',
+    'background:var(--sn-paper-2,rgba(255,253,246,.9));}',
     '.sn-crumbs{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden;flex:1;}',
     '.sn-leading{display:flex;align-items:center;gap:6px;flex:none;max-width:40%;}',
     '.sn-libsel{font:inherit;font-size:12.5px;max-width:180px;padding:3px 6px;border-radius:6px;',
     'border:1px solid var(--sn-line);background:transparent;color:inherit;cursor:pointer;}',
     '.sn-libsel:focus{outline:none;border-color:var(--sn-line-strong);}',
-    '.sn-libsel option{background:var(--dsw-alias-bg-layer-2,#fbf7ec);color:var(--dsw-alias-label-primary,#2f2a24);}',
+    '.sn-libsel option{background:var(--sn-surface);color:var(--sn-ink);}',
     '.sn-crumb{font:inherit;font-size:13px;line-height:1;padding:5px 7px;border-radius:6px;border:0;background:transparent;',
-    'color:var(--dsw-alias-label-secondary,#7a6a56);cursor:pointer;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;}',
-    '.sn-crumb[data-on="1"]{color:var(--dsw-alias-label-primary,#2f2a24);font-weight:700;}',
-    '.sn-sep{color:var(--dsw-alias-label-tertiary,#a2957f);font-size:11px;flex:none;}',
-    '.sn-status{font-size:11px;color:var(--dsw-alias-label-tertiary,#a2957f);white-space:nowrap;flex:none;}',
+    'color:var(--sn-ink-2);cursor:pointer;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;}',
+    '.sn-crumb[data-on="1"]{color:var(--sn-ink);font-weight:700;}',
+    '.sn-sep{color:var(--sn-ink-3);font-size:11px;flex:none;}',
+    '.sn-status{font-size:11px;color:var(--sn-ink-3);white-space:nowrap;flex:none;}',
     '.sn-iconbtn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;',
-    'border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary,#7a6a56);cursor:pointer;flex:none;}',
+    'border:1px solid transparent;background:transparent;color:var(--sn-ink-2);cursor:pointer;flex:none;}',
     '.sn-body{position:relative;display:flex;flex:1;min-height:0;}',
     '.sn-canvas{position:relative;flex:1;min-width:0;overflow:hidden;cursor:grab;touch-action:none;',
     'background-image:radial-gradient(circle at 1px 1px, rgba(120,100,70,.16) 1px, transparent 0);background-size:26px 26px;}',
@@ -312,17 +333,17 @@ function createMindMap(React) {
     '.sn-def{margin-top:.35em;opacity:.74;line-height:1.34;padding:0 .18em;display:-webkit-box;-webkit-box-orient:vertical;',
     '-webkit-line-clamp:4;overflow:hidden;}',
     '.sn-sidebar{position:relative;z-index:5;display:flex;flex-direction:column;flex:none;width:380px;min-width:0;',
-    'border-left:1px solid var(--dsw-alias-border-l1,rgba(90,75,55,.18));background:var(--dsw-alias-bg-layer-1,#fbf7ec);overflow:hidden;}',
+    'border-left:1px solid var(--sn-line));background:var(--sn-paper-2);overflow:hidden;}',
     '.sn-sidebar[data-collapsed="1"]{width:0;border-left:0;}',
     '.sn-side{display:flex;flex-direction:column;min-height:0;height:100%;overflow-y:auto;padding:16px 16px 40px;}',
     '.sn-side-head{display:flex;align-items:flex-start;gap:8px;}',
-    '.sn-side-title{font-size:21px;font-weight:700;line-height:1.25;flex:1;min-width:0;}',
+    '.sn-side-title{font-size:calc(21px * var(--sn-fs,1));font-weight:700;line-height:1.25;flex:1;min-width:0;}',
     '.sn-side-en{font-size:12px;font-style:italic;opacity:.55;margin-top:2px;}',
     '.sn-field{margin-top:14px;}',
-    '.sn-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dsw-alias-label-tertiary,#a2957f);',
+    '.sn-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--sn-ink-3);',
     'margin-bottom:4px;display:flex;align-items:center;gap:6px;}',
     '.sn-label:after{content:"";flex:1;height:1px;background:var(--sn-line-2);}',
-    '.sn-text{font-size:13.5px;line-height:1.72;white-space:pre-wrap;word-break:break-word;}',
+    '.sn-text{font-size:calc(13.5px * var(--sn-fs,1));line-height:1.72;white-space:pre-wrap;word-break:break-word;}',
     '.sn-math{font-family:ui-serif,Georgia,"Times New Roman",serif;font-size:14px;line-height:1.7;',
     'background:rgba(120,100,70,.07);border-radius:6px;padding:6px 9px;white-space:pre-wrap;word-break:break-word;}',
     '.sn-rel{display:flex;flex-wrap:wrap;gap:5px;}',
@@ -340,7 +361,7 @@ function createMindMap(React) {
     'background:var(--sn-surface);box-shadow:var(--sn-shadow-panel);font-size:12px;}',
     '.sn-edgebar-title{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sn-ink-2);}',
     '.sn-edgebar-kinds{display:flex;gap:6px;}',
-    '.sn-mut{font-size:11.5px;color:var(--dsw-alias-label-tertiary,#a2957f);}',
+    '.sn-mut{font-size:11.5px;color:var(--sn-ink-3);}',
     '.sn-note{width:100%;box-sizing:border-box;min-height:76px;resize:vertical;font:inherit;font-size:13px;line-height:1.6;',
     'padding:8px 9px;border-radius:8px;border:1px dashed var(--sn-line);background:var(--sn-surface);color:inherit;}',
     '.sn-note:focus{outline:none;border-color:var(--sn-line-strong);background:var(--sn-surface);}',
@@ -353,14 +374,14 @@ function createMindMap(React) {
     '.sn-field-emptytext{color:rgba(90,72,48,.42);}',
     '.sn-mastery{display:flex;gap:6px;}',
     '.sn-mbtn{flex:1;font:inherit;font-size:12px;padding:6px 0;border-radius:7px;cursor:pointer;',
-    'border:1px solid rgba(120,100,70,.24);background:transparent;color:var(--dsw-alias-label-secondary,#7a6a56);}',
+    'border:1px solid rgba(120,100,70,.24);background:transparent;color:var(--sn-ink-2);}',
     '.sn-mbtn[data-on="1"]{background:rgba(120,88,52,.14);border-color:rgba(120,88,52,.5);color:#3a2f22;font-weight:700;}',
     '.sn-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;height:100%;',
-    'color:var(--dsw-alias-label-tertiary,#a2957f);font-size:13px;}',
+    'color:var(--sn-ink-3);font-size:13px;}',
     '.sn-mini{position:absolute;right:12px;bottom:12px;z-index:4;width:168px;height:116px;border-radius:8px;',
     'background:rgba(255,253,246,.86);border:1px solid rgba(120,100,70,.24);box-shadow:0 2px 10px rgba(70,55,35,.12);overflow:hidden;pointer-events:none;}',
     '.sn-legend{position:absolute;left:12px;bottom:12px;z-index:4;display:flex;flex-direction:column;gap:3px;',
-    'font-size:11px;color:var(--dsw-alias-label-tertiary,#a2957f);pointer-events:none;}',
+    'font-size:11px;color:var(--sn-ink-3);pointer-events:none;}',
     '.sn-legend i{display:inline-block;width:16px;height:0;margin-right:6px;vertical-align:middle;}',
     '.sn-pathlist{list-style:none;margin:10px 0 0;padding:0;}',
     '.sn-pathstep{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border-radius:7px;cursor:pointer;}',
@@ -369,16 +390,16 @@ function createMindMap(React) {
     'font-size:11px;display:flex;align-items:center;justify-content:center;margin-top:2px;}',
     '.sn-pathstep[data-last="1"] .sn-pathnum{background:#9a6b3f;color:#fff;border-color:#9a6b3f;}',
     '.sn-pathtxt{display:flex;flex-direction:column;gap:2px;min-width:0;}',
-    '.sn-pathtitle{font-size:13.5px;color:var(--dsw-alias-label-primary,#2f2a24);}',
-    '.sn-pathsum{font-size:11.5px;line-height:1.45;color:var(--dsw-alias-label-tertiary,#8a7a63);}',
-    '.sn-pathsub{font-size:11.5px;line-height:1.6;color:var(--dsw-alias-label-tertiary,#8a7a63);margin-top:4px;}',
+    '.sn-pathtitle{font-size:13.5px;color:var(--sn-ink);}',
+    '.sn-pathsum{font-size:11.5px;line-height:1.45;color:var(--sn-ink-3);}',
+    '.sn-pathsub{font-size:11.5px;line-height:1.6;color:var(--sn-ink-3);margin-top:4px;}',
     '.sn-card[data-path="1"]{box-shadow:0 0 0 2px rgba(154,107,63,.42),0 10px 20px -16px rgba(60,40,20,.7);}',
     '.sn-root[data-theme="dark"] .sn-pathtitle{color:#efe7d8;}',
     '.sn-root[data-theme="dark"] .sn-pathsum,.sn-root[data-theme="dark"] .sn-pathsub{color:#a89a84;}',
     '.sn-root[data-theme="dark"] .sn-pathnum{color:#e8c184;border-color:rgba(232,193,132,.5);}',
     '.sn-root[data-theme="dark"] .sn-pathstep[data-on="1"]{background:rgba(232,193,132,.16);}',
     '.sn-emptyfield{margin:.1em 0 .5em;padding:.5em .6em;border:1px dashed rgba(150,120,80,.35);border-radius:7px;color:rgba(90,72,48,.65);font-size:12.5px;line-height:1.5;}',
-    '.sn-hint{position:absolute;left:12px;top:10px;z-index:4;font-size:11px;color:var(--dsw-alias-label-tertiary,#a2957f);',
+    '.sn-hint{position:absolute;left:12px;top:10px;z-index:4;font-size:11px;color:var(--sn-ink-3);',
     'background:rgba(255,253,246,.7);padding:3px 8px;border-radius:999px;pointer-events:none;}',
     '.sn-src{margin-top:8px;border-left:2px solid rgba(154,107,63,.45);padding-left:9px;font-size:12.5px;line-height:1.65;opacity:.82;}',
     '.sn-src-meta{font-size:11px;letter-spacing:.06em;opacity:.7;margin-bottom:3px;}',
@@ -386,7 +407,7 @@ function createMindMap(React) {
     'background:rgba(255,253,246,.92);border:1px solid rgba(120,100,70,.24);border-radius:999px;padding:5px 12px;pointer-events:none;}',
     /* 搜索 */
     '.sn-searchbtn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border-radius:6px;flex:none;',
-    'border:1px solid rgba(120,100,70,.24);background:transparent;color:var(--dsw-alias-label-secondary,#7a6a56);font:inherit;font-size:12px;cursor:pointer;}',
+    'border:1px solid rgba(120,100,70,.24);background:transparent;color:var(--sn-ink-2);font:inherit;font-size:12px;cursor:pointer;}',
     '.sn-searchbtn kbd{font:inherit;font-size:10.5px;opacity:.62;}',
     '.sn-searchbtn[data-on="1"]{background:rgba(190,128,35,.16);}',
     '.sn-exportwrap{position:relative;flex:none;}',
@@ -402,7 +423,7 @@ function createMindMap(React) {
     '.sn-outline{position:absolute;inset:0;z-index:6;overflow:auto;padding:18px 18px 42px;',
     'background:var(--sn-paper,#f4efe3);}',
     '.sn-olinner{max-width:780px;margin:0 auto;}',
-    '.sn-olrow{display:flex;align-items:center;gap:7px;min-height:28px;border-radius:6px;cursor:pointer;',
+    '.sn-olrow{display:flex;align-items:center;gap:7px;min-height:28px;font-size:calc(14px * var(--sn-fs,1));border-radius:6px;cursor:pointer;',
     'color:var(--sn-ink,#2f2a24);font:inherit;font-size:13.5px;padding:2px 8px;}',
     '.sn-olrow:hover{background:rgba(120,100,70,.1);}',
     '.sn-olrow[data-on="1"]{background:rgba(190,128,35,.16);}',
@@ -414,7 +435,7 @@ function createMindMap(React) {
     '.sn-olcaret:hover{background:rgba(120,100,70,.16);opacity:1;}',
     '.sn-olcaret[data-empty="1"]{visibility:hidden;}',
     '.sn-oltitle{flex:none;max-width:62%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
-    '.sn-olrow[data-lv="0"] .sn-oltitle{font-weight:700;font-size:15px;}',
+    '.sn-olrow[data-lv="0"] .sn-oltitle{font-weight:700;font-size:calc(15px * var(--sn-fs,1));}',
     '.sn-olspacer{flex:1;min-width:8px;}',
     '.sn-olen{font-size:11px;opacity:.5;font-style:italic;flex:none;}',
     '.sn-oldot{flex:none;width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.22;}',
@@ -429,10 +450,10 @@ function createMindMap(React) {
     'box-shadow:var(--sn-shadow-panel,0 18px 48px rgba(60,45,28,.3));}',
     '.sn-rvhead{display:flex;align-items:baseline;gap:10px;font-size:12px;color:var(--sn-ink-3,#8c8071);',
     'cursor:move;user-select:none;touch-action:none;}',
-    '.sn-rvtitle{margin:8px 0 4px;font-size:22px;font-weight:700;letter-spacing:.02em;}',
+    '.sn-rvtitle{margin:8px 0 4px;font-size:calc(22px * var(--sn-fs,1));font-weight:700;letter-spacing:.02em;}',
     '.sn-rven{font-size:12.5px;font-style:italic;opacity:.6;margin-bottom:10px;}',
     '.sn-rvbody{border-top:1px solid var(--sn-line-2,rgba(120,100,70,.16));padding-top:10px;',
-    'font-size:13.5px;line-height:1.62;}',
+    'font-size:calc(13.5px * var(--sn-fs,1));line-height:1.62;}',
     '.sn-rvacts{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;}',
     '.sn-rvbtn{appearance:none;font:inherit;font-size:13px;padding:7px 14px;border-radius:8px;cursor:pointer;',
     'border:1px solid var(--sn-line,rgba(120,100,70,.24));background:transparent;color:var(--sn-ink,#2f2a24);}',
@@ -441,7 +462,7 @@ function createMindMap(React) {
     '.sn-searchwrap{position:absolute;inset:0;z-index:30;display:flex;justify-content:center;align-items:flex-start;',
     'padding:56px 16px 16px;background:rgba(30,24,18,.22);}',
     '.sn-search{width:100%;max-width:560px;border-radius:12px;overflow:hidden;',
-    'border:1px solid rgba(120,100,70,.3);background:var(--dsw-alias-bg-layer-2,#fbf7ec);box-shadow:0 12px 40px rgba(60,45,28,.28);}',
+    'border:1px solid rgba(120,100,70,.3);background:var(--sn-surface);box-shadow:0 12px 40px rgba(60,45,28,.28);}',
     '.sn-search input{display:block;width:100%;border:0;outline:0;background:transparent;color:inherit;',
     'font:inherit;font-size:15px;padding:13px 15px;}',
     '.sn-search-list{max-height:44vh;overflow:auto;border-top:1px solid var(--sn-line-2);}',
@@ -454,29 +475,43 @@ function createMindMap(React) {
     '.sn-title-input{flex:1;min-width:0;font:inherit;font-size:21px;font-weight:700;line-height:1.25;padding:1px 6px;',
     'border-radius:5px;border:1px solid rgba(154,107,63,.5);background:rgba(255,255,255,.35);color:inherit;outline:none;}',
     '.sn-dialog{width:100%;max-width:420px;border-radius:12px;padding:18px 20px 16px;',
-    'border:1px solid rgba(120,100,70,.3);background:var(--dsw-alias-bg-layer-2,#fbf7ec);box-shadow:0 12px 40px rgba(60,45,28,.28);}',
+    'border:1px solid rgba(120,100,70,.3);background:var(--sn-surface);box-shadow:0 12px 40px rgba(60,45,28,.28);}',
     '.sn-dialog h4{margin:0 0 6px;font-size:15px;font-weight:700;}',
     '.sn-dialog p{margin:0 0 14px;font-size:12.5px;line-height:1.7;opacity:.72;}',
-    '.sn-dlg-acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;}',
+    '.sn-dlg-acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;clear:both;padding-top:14px;}',
     '.sn-dbtn{font:inherit;font-size:12.5px;padding:6px 11px;border-radius:7px;cursor:pointer;',
     'border:1px solid rgba(120,100,70,.3);background:transparent;color:inherit;}',
     '.sn-dbtn[data-danger="1"]{border-color:rgba(186,64,104,.55);color:#b03a5b;}',
+    '.sn-dbtn[data-primary="1"]{border-color:transparent;background:var(--sn-accent);color:#fffaf0;}',
+    /* 设置弹窗：一行一个选项 */
+    '.sn-setdlg{max-width:440px;}',
+    '.sn-setrow{float:left;clear:both;margin:14px 10px 0 0;}',
+    '.sn-setlabel{display:inline-block;font-size:12px;opacity:.6;vertical-align:middle;}',
+    '.sn-setopts{float:left;display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;margin:14px 0 0;vertical-align:middle;}',
+    '.sn-sethint{font-size:11.5px;opacity:.55;}',
+    '.sn-setrange{width:132px;accent-color:var(--sn-accent);}',
+    '.sn-impdlg{max-width:520px;}',
+    '.sn-implabel{margin:12px 0 4px!important;font-size:12px!important;font-weight:700;opacity:.8!important;}',
+    '.sn-impcode{margin:0;padding:9px 11px;border-radius:8px;font-family:ui-monospace,Menlo,Consolas,monospace;',
+    'font-size:11.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;',
+    'background:rgba(120,100,70,.1);border:1px solid var(--sn-line-2);}',
+    '.sn-impdir{user-select:all;}',
     /* dark */
     /* 悬停效果只在真有指针的设备上生效（触屏上 :hover 会「粘住」） */
     '@media (hover: hover){',
-      '.sn-crumb:hover{background:rgba(120,100,70,.1);color:var(--dsw-alias-label-primary,#2f2a24);}',
-      '.sn-iconbtn:hover{background:rgba(120,100,70,.12);color:var(--dsw-alias-label-primary,#2f2a24);}',
+      '.sn-crumb:hover{background:rgba(120,100,70,.1);color:var(--sn-ink);}',
+      '.sn-iconbtn:hover{background:rgba(120,100,70,.12);color:var(--sn-ink);}',
       '.sn-card:hover{border-color:rgba(86,68,45,.42);box-shadow:0 3px 12px rgba(70,55,35,.18);}',
       '.sn-chip:hover{border-color:rgba(120,88,52,.55);}',
       '.sn-pathstep:hover{background:rgba(154,107,63,.08);}',
       '.sn-root[data-theme="dark"] .sn-pathstep:hover{background:rgba(232,193,132,.1);}',
-      '.sn-searchbtn:hover{background:rgba(120,100,70,.1);color:var(--dsw-alias-label-primary,#2f2a24);}',
+      '.sn-searchbtn:hover{background:rgba(120,100,70,.1);color:var(--sn-ink);}',
       '.sn-dbtn:hover{background:rgba(120,100,70,.12);}',
       '.sn-dbtn[data-danger="1"]:hover{background:rgba(186,64,104,.14);}',
     '}',
 
     /* 键盘焦点必须看得见（鼠标点击不触发，避免满屏描边） */
-    '.sn-root :focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#9a6b3f);outline-offset:2px;}',
+    '.sn-root :focus-visible{outline:2px solid var(--sn-accent);outline-offset:2px;}',
     '.sn-root .sn-card:focus-visible{outline-offset:3px;}',
 
     /* 系统开了「减弱动态效果」就关掉推镜与过渡 */
@@ -508,28 +543,6 @@ function createMindMap(React) {
     /* 学习路径：夜里也要一眼看见（金边 + 外发光），无关的卡片和线退到很暗 */
     'body[data-ds-dark-theme] .sn-root:not([data-theme="light"]) .sn-card[data-path="1"],.sn-root[data-theme="dark"] .sn-card[data-path="1"]{border-color:rgba(240,200,130,.95);background:#3a3128;color:#fdf6e8;box-shadow:0 0 0 2px rgba(240,200,130,.9),0 0 26px rgba(240,200,130,.34);}',
     'body[data-ds-dark-theme] .sn-root:not([data-theme="light"]) .sn-card[data-dim="1"],.sn-root[data-theme="dark"] .sn-card[data-dim="1"]{opacity:.3;}',
-    /* 日光纸：宿主是暗色时也能强行回到纸色（特异性高于上面的 dark 规则） */
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"]{background:#f4efe3;color:#2f2a24;}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-topbar{background:rgba(251,247,236,.92);border-color:rgba(120,100,70,.18);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-canvas{background-image:radial-gradient(circle at 1px 1px, rgba(120,100,70,.16) 1px, transparent 0);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card{background:#fffdf6;color:#2f2a24;border-color:rgba(86,68,45,.24);box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 2px 6px rgba(70,55,35,.10);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card[data-focus="1"]{background:var(--sn-surface-focus);border-color:var(--sn-line-strong);}',    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card[data-dot="1"]{background:#bfad90;border-color:rgba(86,68,45,.28);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-sidebar{background:#fbf7ec;border-color:rgba(120,100,70,.18);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-chip{background:#fffdf6;color:#5c4d3c;border-color:rgba(86,68,45,.28);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-edgebar{background:rgba(251,247,236,.97);border-color:rgba(86,68,45,.3);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-edgebar-title{color:#4a4034;}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-note{background:rgba(255,255,255,.62);border-color:rgba(86,68,45,.26);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-field-input{background:#fffdf6;border-color:rgba(86,68,45,.42);color:#3a2f22;}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-field-preview{background:rgba(120,88,52,.07);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-field-emptytext{color:rgba(90,72,48,.42);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-mini{background:rgba(251,247,236,.9);border-color:rgba(86,68,45,.22);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-hint{background:rgba(251,247,236,.8);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-live{background:rgba(251,247,236,.95);border-color:rgba(120,100,70,.24);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-search{background:#fffdf7;border-color:rgba(86,68,45,.3);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-search-list{border-color:rgba(86,68,45,.2);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-search-row[data-on="1"]{background:rgba(214,163,74,.18);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-dialog{background:#fffdf7;border-color:rgba(86,68,45,.3);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-title-input{background:rgba(0,0,0,.04);border-color:rgba(154,107,63,.55);}',
     /* 顶栏这排在「日光纸」下必须用纸上的墨色：宿主的 label token 是给深色底用的，套在米黄底上根本看不清 */
     '.sn-root[data-theme="light"] .sn-topbar{color:#2f2a24;}',
     '.sn-root[data-theme="light"] .sn-topbar .sn-crumb{color:#6b5f4e;}',
@@ -676,6 +689,92 @@ function createMindMap(React) {
   /* MindMap                                                           */
   /* ---------------------------------------------------------------- */
 
+  /* 纸的几套调色板。日光纸可选米黄 / 灰白 / 淡绿，夜光纸一套；
+     「深一点 / 浅一点」只动四个底色的亮度，不动墨色。 */
+  var PAPERS = {
+    cream: {
+      paper: '#f4efe3', paper2: '#fbf7ec', surface: '#fffdf6', focus: '#fffaf0',
+      ink: '#2f2a24', ink2: '#4a4034', ink3: '#8c8071',
+      line: 'rgba(86,68,45,.24)', line2: 'rgba(120,100,70,.16)', dot: '#bfad90',
+    },
+    grey: {
+      paper: '#eceef0', paper2: '#f6f7f8', surface: '#ffffff', focus: '#fbfcfd',
+      ink: '#22262a', ink2: '#424b53', ink3: '#7c848c',
+      line: 'rgba(60,70,80,.22)', line2: 'rgba(60,70,80,.12)', dot: '#b6bec5',
+    },
+    green: {
+      paper: '#e9efe3', paper2: '#f4f8ee', surface: '#fdfefa', focus: '#f9fcf4',
+      ink: '#28312a', ink2: '#47543f', ink3: '#7d8a75',
+      line: 'rgba(66,88,56,.22)', line2: 'rgba(66,88,56,.12)', dot: '#b4c3a8',
+    },
+    night: {
+      paper: '#1c1a17', paper2: '#211e1a', surface: '#241f1a', focus: '#2a241d',
+      ink: '#efe7d8', ink2: '#d6c9b4', ink3: '#a1917b',
+      line: 'rgba(210,190,160,.22)', line2: 'rgba(210,190,160,.14)', dot: '#6b5f4e',
+    },
+  }
+
+  var FONT_STACKS = {
+    kai: "'KaiTi','STKaiti','Kaiti SC','Songti SC',serif",
+    song: "'Songti SC','SimSun','STSong','Noto Serif SC',serif",
+    hei: "'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif",
+  }
+
+  var FONT_SCALES = { s: 0.94, m: 1, l: 1.12 }
+
+  var APPEARANCE_DEFAULT = { paper: 'cream', font: 'kai', size: 'm', tone: 0 }
+  var APPEARANCE_KEY = 'synapsis.appearance'
+
+  function readAppearance() {
+    try {
+      var raw = window.localStorage.getItem(APPEARANCE_KEY)
+      if (!raw) return APPEARANCE_DEFAULT
+      var parsed = JSON.parse(raw)
+      return {
+        paper: PAPERS[parsed.paper] ? parsed.paper : APPEARANCE_DEFAULT.paper,
+        font: FONT_STACKS[parsed.font] ? parsed.font : APPEARANCE_DEFAULT.font,
+        size: FONT_SCALES[parsed.size] ? parsed.size : APPEARANCE_DEFAULT.size,
+        tone: typeof parsed.tone === 'number' ? Math.max(-2, Math.min(2, parsed.tone)) : 0,
+      }
+    } catch (e) {
+      return APPEARANCE_DEFAULT
+    }
+  }
+
+  /* 把 #rrggbb 提亮 / 压暗一点：tone 一档约 7/255 */
+  function shiftHex(hex, delta) {
+    if (!delta) return hex
+    var m = /^#([0-9a-f]{6})$/i.exec(hex)
+    if (!m) return hex
+    var n = parseInt(m[1], 16)
+    var clamp = function (v) {
+      return Math.max(0, Math.min(255, Math.round(v)))
+    }
+    var r = clamp(((n >> 16) & 255) + delta)
+    var g = clamp(((n >> 8) & 255) + delta)
+    var b = clamp((n & 255) + delta)
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)
+  }
+
+  function appearanceVars(theme, appear) {
+    var pal = theme === 'dark' ? PAPERS.night : PAPERS[appear.paper] || PAPERS.cream
+    var d = appear.tone * 7
+    return {
+      '--sn-paper': shiftHex(pal.paper, d),
+      '--sn-paper-2': shiftHex(pal.paper2, d),
+      '--sn-surface': shiftHex(pal.surface, d),
+      '--sn-surface-focus': shiftHex(pal.focus, d),
+      '--sn-ink': pal.ink,
+      '--sn-ink-2': pal.ink2,
+      '--sn-ink-3': pal.ink3,
+      '--sn-line': pal.line,
+      '--sn-line-2': pal.line2,
+      '--sn-dot': pal.dot,
+      '--sn-font': FONT_STACKS[appear.font],
+      '--sn-fs': String(FONT_SCALES[appear.size]),
+    }
+  }
+
   function MindMap(props) {
     var data = props.data
     var editable = typeof props.onChange === 'function'
@@ -735,6 +834,30 @@ function createMindMap(React) {
     var exportState = useState(false)
     var exportOpen = exportState[0]
     var setExportOpen = exportState[1]
+
+    /* 纸 / 字体 / 字号 / 深浅：存在 localStorage，插件重启还在 */
+    var appearState = useState(readAppearance)
+    var appear = appearState[0]
+    var setAppear = appearState[1]
+    useEffect(function () {
+      try {
+        window.localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appear))
+      } catch (e) {
+        /* 隐私模式下写不进去就算了，不该因此崩掉 */
+      }
+    }, [appear])
+
+    var settingsState = useState(false)
+    var settingsOpen = settingsState[0]
+    var setSettingsOpen = settingsState[1]
+
+    var importState = useState(false)
+    var importOpen = importState[0]
+    var setImportOpen = importState[1]
+
+    var copiedState = useState('')
+    var copied = copiedState[0]
+    var setCopied = copiedState[1]
 
     /* 拖拽改父：正在搬的节点 + 悬停的目标 */
     var moveState = useState(null)
@@ -1332,6 +1455,7 @@ function createMindMap(React) {
             return
           }
           if (A.closeReview && A.closeReview()) return
+          if (A.closePanels && A.closePanels()) return
           if (A.closeExport && A.closeExport()) return
           if (selectedId) setSelectedId('')
           return
@@ -2734,6 +2858,17 @@ function createMindMap(React) {
         setReview(null)
         return true
       },
+      closePanels: function () {
+        if (importOpen) {
+          setImportOpen(false)
+          return true
+        }
+        if (settingsOpen) {
+          setSettingsOpen(false)
+          return true
+        }
+        return false
+      },
     }
 
     if (!layout) {
@@ -2742,7 +2877,7 @@ function createMindMap(React) {
 
     return h(
       'div',
-      { className: 'sn-root', 'data-theme': props.theme, 'data-linking': linking ? '1' : '0' },
+      { className: 'sn-root', 'data-theme': props.theme, 'data-linking': linking ? '1' : '0', style: appearanceVars(props.theme, appear) },
       h('style', null, CSS),
       h(
         'div',
@@ -2802,6 +2937,31 @@ function createMindMap(React) {
           },
           h('span', null, '搜索'),
           h('kbd', null, '⌘K'),
+        ),
+        props.dir
+          ? h(
+              'button',
+              {
+                className: 'sn-searchbtn',
+                onClick: function () {
+                  setImportOpen(true)
+                },
+                title: '把 PDF 讲义变成这张图：怎么交给我',
+              },
+              '导入',
+            )
+          : null,
+        h(
+          'button',
+          {
+            className: 'sn-searchbtn',
+            'data-on': settingsOpen ? '1' : '0',
+            onClick: function () {
+              setSettingsOpen(!settingsOpen)
+            },
+            title: '纸、字体、字号',
+          },
+          '设置',
         ),
         h(
           'div',
@@ -3281,6 +3441,218 @@ function createMindMap(React) {
               ),
             )
           })()
+        : null,
+      settingsOpen
+        ? h(
+            'div',
+            {
+              className: 'sn-searchwrap',
+              onClick: function () {
+                setSettingsOpen(false)
+              },
+            },
+            h(
+              'div',
+              {
+                className: 'sn-dialog sn-setdlg',
+                onClick: function (e) {
+                  e.stopPropagation()
+                },
+              },
+              h('h4', null, '纸与字'),
+              h('div', { className: 'sn-setrow' }, h('span', { className: 'sn-setlabel' }, '纸')),
+              h(
+                'div',
+                { className: 'sn-setopts' },
+                [
+                  ['cream', '米黄'],
+                  ['grey', '灰白'],
+                  ['green', '淡绿'],
+                ].map(function (pair) {
+                  return h(
+                    'button',
+                    {
+                      key: pair[0],
+                      className: 'sn-chip',
+                      'data-on': appear.paper === pair[0] ? '1' : '0',
+                      onClick: function () {
+                        setAppear({ paper: pair[0], font: appear.font, size: appear.size, tone: appear.tone })
+                      },
+                    },
+                    pair[1],
+                  )
+                }),
+                h('span', { className: 'sn-sethint' }, props.theme === 'dark' ? '（夜光纸下不用选）' : ''),
+              ),
+              h('div', { className: 'sn-setrow' }, h('span', { className: 'sn-setlabel' }, '字')),
+              h(
+                'div',
+                { className: 'sn-setopts' },
+                [
+                  ['kai', '楷体'],
+                  ['song', '宋体'],
+                  ['hei', '黑体'],
+                ].map(function (pair) {
+                  return h(
+                    'button',
+                    {
+                      key: pair[0],
+                      className: 'sn-chip',
+                      'data-on': appear.font === pair[0] ? '1' : '0',
+                      onClick: function () {
+                        setAppear({ paper: appear.paper, font: pair[0], size: appear.size, tone: appear.tone })
+                      },
+                    },
+                    pair[1],
+                  )
+                }),
+              ),
+              h('div', { className: 'sn-setrow' }, h('span', { className: 'sn-setlabel' }, '字号')),
+              h(
+                'div',
+                { className: 'sn-setopts' },
+                [
+                  ['s', '小'],
+                  ['m', '中'],
+                  ['l', '大'],
+                ].map(function (pair) {
+                  return h(
+                    'button',
+                    {
+                      key: pair[0],
+                      className: 'sn-chip',
+                      'data-on': appear.size === pair[0] ? '1' : '0',
+                      onClick: function () {
+                        setAppear({ paper: appear.paper, font: appear.font, size: pair[0], tone: appear.tone })
+                      },
+                    },
+                    pair[1],
+                  )
+                }),
+              ),
+              h('div', { className: 'sn-setrow' }, h('span', { className: 'sn-setlabel' }, '深浅')),
+              h(
+                'div',
+                { className: 'sn-setopts' },
+                h('input', {
+                  className: 'sn-setrange',
+                  type: 'range',
+                  min: -2,
+                  max: 2,
+                  step: 1,
+                  value: appear.tone,
+                  onChange: function (e) {
+                    setAppear({
+                      paper: appear.paper,
+                      font: appear.font,
+                      size: appear.size,
+                      tone: Number(e.target.value),
+                    })
+                  },
+                }),
+                h('span', { className: 'sn-sethint' }, appear.tone === 0 ? '原样' : appear.tone > 0 ? '深一些' : '浅一些'),
+              ),
+              h(
+                'div',
+                { className: 'sn-dlg-acts' },
+                h(
+                  'button',
+                  {
+                    className: 'sn-dbtn',
+                    onClick: function () {
+                      setAppear(APPEARANCE_DEFAULT)
+                    },
+                  },
+                  '恢复默认',
+                ),
+                h(
+                  'button',
+                  {
+                    className: 'sn-dbtn',
+                    'data-primary': '1',
+                    onClick: function () {
+                      setSettingsOpen(false)
+                    },
+                  },
+                  '好了',
+                ),
+              ),
+            ),
+          )
+        : null,
+      importOpen
+        ? h(
+            'div',
+            {
+              className: 'sn-searchwrap',
+              onClick: function () {
+                setImportOpen(false)
+              },
+            },
+            h(
+              'div',
+              {
+                className: 'sn-dialog sn-impdlg',
+                onClick: function (e) {
+                  e.stopPropagation()
+                },
+              },
+              h('h4', null, '怎么把 PDF 变成图'),
+              h(
+                'p',
+                null,
+                '插件自己不读 PDF：它只认 .mindmap.json。真正干活的是 DSH 里的对话——由它调本机的 OCR 和模型，把讲义拆成概念，然后直接写进这个库目录。',
+              ),
+              h('p', { className: 'sn-implabel' }, '① 把 PDF 拖进左边的对话窗口'),
+              h('p', { className: 'sn-implabel' }, '② 把下面这句话发给它'),
+              h(
+                'pre',
+                { className: 'sn-impcode' },
+                '用析域把这份讲义做成概念图：先列章节清单给我确认，再逐章生成，最后写进库目录。',
+              ),
+              h('p', { className: 'sn-implabel' }, '③ 回来刷新（切走再切回面板，或按 ↻）'),
+              h('div', { className: 'sn-setrow' }, h('span', { className: 'sn-setlabel' }, '库目录')),
+              h('pre', { className: 'sn-impcode sn-impdir' }, props.dir),
+              h(
+                'div',
+                { className: 'sn-dlg-acts' },
+                h(
+                  'button',
+                  {
+                    className: 'sn-dbtn',
+                    onClick: function () {
+                      var text = '用析域把这份讲义做成概念图：先列章节清单给我确认，再逐章生成，最后写进库目录 ' + props.dir + '。'
+                      var done = function () {
+                        setCopied('已复制')
+                        window.setTimeout(function () {
+                          setCopied('')
+                        }, 1600)
+                      }
+                      if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(done, function () {
+                          setCopied('复制失败，请手选')
+                        })
+                      } else {
+                        setCopied('请手动复制')
+                      }
+                    },
+                  },
+                  copied || '复制这句话',
+                ),
+                h(
+                  'button',
+                  {
+                    className: 'sn-dbtn',
+                    'data-primary': '1',
+                    onClick: function () {
+                      setImportOpen(false)
+                    },
+                  },
+                  '知道了',
+                ),
+              ),
+            ),
+          )
         : null,
     )
   }

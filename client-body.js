@@ -366,6 +366,7 @@ function Panel() {
     key: name,
     data: doc,
     leading,
+    dir,
     theme,
     onToggleTheme: toggleTheme,
     initialFocusId: initialFocus,
