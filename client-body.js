@@ -184,6 +184,23 @@ function Panel() {
     }
   }, [openNamed])
 
+  /* 每份图记住自己停在哪一层：换回来的时候直接回到那一层（hook 必须放在早退之前） */
+  const initialFocus = React.useMemo(() => {
+    try {
+      return localStorage.getItem('synapsis.view.' + name) || ''
+    } catch {
+      return ''
+    }
+  }, [name])
+  const onFocusChange = React.useCallback(
+    (id) => {
+      try {
+        if (name) localStorage.setItem('synapsis.view.' + name, id || '')
+      } catch {}
+    },
+    [name],
+  )
+
   if (error) {
     return hh(
       'div',
@@ -275,6 +292,8 @@ function Panel() {
     leading,
     theme,
     onToggleTheme: toggleTheme,
+    initialFocusId: initialFocus,
+    onFocusChange,
     renderMath,
     statusText: status,
     onChange,

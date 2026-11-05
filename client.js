@@ -729,14 +729,20 @@ function createMindMap(React) {
       }
     }, [layout, focusId, animateTo, applyCamera])
 
-    /* data sync: 首次拿到数据时把根设为焦点 */
+    /* data sync: 首次拿到数据时把根（或上次停留的那一层）设为焦点 */
     useEffect(function () {
       if (!layout || initDoneRef.current) return
       var el = canvasRef.current
       if (!el || el.clientWidth < 640 || el.clientHeight < 380) return
       initDoneRef.current = true
-      focusOn(layout.root.id, false, true)
+      focusOn(props.initialFocusId || layout.root.id, false, true)
     }, [layout, focusOn])
+
+    /* 把当前停在哪一层报给外面（面板用来记住每份图的视野） */
+    useEffect(function () {
+      if (!initDoneRef.current) return
+      if (typeof props.onFocusChange === 'function') props.onFocusChange(focusId || '')
+    }, [focusId])
 
     /* 生成中：概念变多时把视野缓缓拉远，让树"从中心长出来" */
     useEffect(function () {
@@ -753,7 +759,7 @@ function createMindMap(React) {
       var observer = new ResizeObserver(function () {
         if (!initDoneRef.current && el.clientWidth >= 640 && el.clientHeight >= 380 && layout) {
           initDoneRef.current = true
-          focusOn(layout.root.id, false, true)
+          focusOn(props.initialFocusId || layout.root.id, false, true)
           return
         }
         applyCamera()
@@ -2182,6 +2188,23 @@ function Panel() {
     }
   }, [openNamed])
 
+  /* 每份图记住自己停在哪一层：换回来的时候直接回到那一层（hook 必须放在早退之前） */
+  const initialFocus = React.useMemo(() => {
+    try {
+      return localStorage.getItem('synapsis.view.' + name) || ''
+    } catch {
+      return ''
+    }
+  }, [name])
+  const onFocusChange = React.useCallback(
+    (id) => {
+      try {
+        if (name) localStorage.setItem('synapsis.view.' + name, id || '')
+      } catch {}
+    },
+    [name],
+  )
+
   if (error) {
     return hh(
       'div',
@@ -2273,6 +2296,8 @@ function Panel() {
     leading,
     theme,
     onToggleTheme: toggleTheme,
+    initialFocusId: initialFocus,
+    onFocusChange,
     renderMath,
     statusText: status,
     onChange,
