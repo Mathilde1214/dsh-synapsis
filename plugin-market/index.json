@@ -19,12 +19,12 @@
       "repository": { "url": "https://github.com/Mathilde1214/dsh-synapsis" },
       "versions": [
         {
-          "version": "0.11.0",
-          "publishTimestamp": 1794015000,
+          "version": "0.12.0",
+          "publishTimestamp": 1794016000,
           "source": {
             "type": "git",
             "url": "https://github.com/Mathilde1214/dsh-synapsis",
-            "commit": "d6b64a714063323b0efab9e41d0dd20d5fab6e60"
+            "commit": "07466103b9f74cbe22f81c35155dc4c35a7d9a61"
           },
           "engines": { "dsh": ">=0.2.2-rc.1 <0.3.0" }
         }
