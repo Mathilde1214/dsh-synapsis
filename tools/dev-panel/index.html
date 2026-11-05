@@ -31,6 +31,12 @@
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(body.data),
           })
+        } else if (url === '/synapsis-api/create') {
+          return REAL_FETCH('/api/library-create', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: (init && init.body) || '{}',
+          })
         } else if (url === '/synapsis-api/delete') {
           const body = JSON.parse((init && init.body) || '{}')
           return REAL_FETCH('/api/library/' + encodeURIComponent(body.name), { method: 'DELETE' })

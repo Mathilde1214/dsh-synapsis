@@ -45,7 +45,11 @@ function sendJson(res, code, value) {
 async function sendFile(res, file) {
   try {
     const buf = await fs.readFile(file)
-    res.writeHead(200, { 'content-type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' })
+    res.writeHead(200, {
+      'content-type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream',
+      /* 联调时改完 rebuild 就刷新，别让浏览器缓存旧的 client.js */
+      'cache-control': 'no-store',
+    })
     res.end(buf)
   } catch {
     res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' })
@@ -136,6 +140,47 @@ const server = http.createServer(async (req, res) => {
       await fs.rename(full, path.join(trash, name + '.' + stamp))
       return sendJson(res, 200, { ok: true, name, trashed: true })
     }
+  }
+
+  /* ---- 新建空白图（联调页用；生产由 index.js 的 /create 提供） ---- */
+  if (pathname === '/api/library-create' && req.method === 'POST') {
+    let title = '未命名图'
+    try {
+      const parsed = JSON.parse((await readBody(req)) || '{}')
+      if (parsed && parsed.title) title = String(parsed.title)
+    } catch {}
+    const slug = title.replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'map'
+    let name = slug + '.mindmap.json'
+    let n = 2
+    while (existsSync(path.join(DATA, name))) {
+      name = slug + '-' + n + '.mindmap.json'
+      n += 1
+    }
+    const doc = {
+      version: 1,
+      title,
+      subtitle: '',
+      updated: new Date().toISOString(),
+      nodes: [
+        {
+          id: 'root',
+          title,
+          parent: null,
+          summary: '',
+          definition: '',
+          formal: '',
+          intuition: '',
+          examples: '',
+          pitfalls: '',
+          mastery: 0,
+          note: '',
+        },
+      ],
+      edges: [],
+    }
+    await fs.mkdir(DATA, { recursive: true })
+    await fs.writeFile(path.join(DATA, name), JSON.stringify(doc, null, 2), 'utf8')
+    return sendJson(res, 200, { ok: true, name, dir: DATA, data: doc })
   }
 
   /* ---- 插件路由的等价映射：让联调页用和生产一样的 URL ---- */

@@ -62,6 +62,12 @@ Click "析域" in the sidebar and the panel takes over the main area.
 
 **Switching and deleting maps**: the library dropdown sits at the far left of the top bar. Switching reloads and re-frames the map. Delete needs two clicks — the first arms it, four seconds without a second click disarms it. Deleted files aren't destroyed; they move into `.trash/` inside the library folder.
 
+**Starting from nothing**: "+ 新建" next to the dropdown creates an empty map with a single root node. Press `Tab` to add concepts. Use it when you'd rather build the map by hand than generate it.
+
+**Drag a card to re-parent it**: drag one card onto another and it moves under it. Dropping into its own descendants is refused, since that would cut the tree in two. Dragging empty space still pans.
+
+**Export**: the top bar's "导出" gives you a PNG, an SVG, or a Markdown outline. It exports **the layer you're looking at**, not the whole book — go back to the root with the breadcrumb if you want everything. Pick SVG when you need detail: it stays sharp at any zoom. The Markdown outline suits pasting into a notes app.
+
 ### Keyboard
 
 | Key | Action |
@@ -72,9 +78,10 @@ Click "析域" in the sidebar and the panel takes over the main area.
 | `Tab` / `Enter` | Add child / add sibling |
 | `F2` | Rename |
 | `Delete` | Delete node (asks if it has children) or the selected edge |
+| Drag a card | Re-parent it |
 | `Shift` + drag | Create a relation edge |
 | `⌘Z` / `Ctrl+Z` | Undo (consecutive typing collapses into one step) |
-| `Esc` | Close search, editing, the delete prompt, the selected edge — in that order |
+| `Esc` | Close search, editing, the delete prompt, the selected edge, the export menu — in that order |
 
 ## Install
 
@@ -191,7 +198,7 @@ npm run dev       # node tools/dev-server.mjs, then open http://127.0.0.1:7788/
 
 - The panel occupies the host's main panel, so it and the conversation view are mutually exclusive — you switch back and forth.
 - Relation edges only surface near the focus; otherwise a few hundred nodes turn into yarn. To see a particular relation, go into its chapter first.
-- Dragging to change a parent, multi-select, and export aren't implemented.
+- Multi-select isn't implemented yet. Export covers the current layer rather than typesetting the whole book in one go.
 - Since the host shows one main panel at a time, you can't watch the map and chat side by side in one window; two browser tabs on the same port works.
 
 ## From a textbook to a map

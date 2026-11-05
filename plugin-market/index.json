@@ -27,7 +27,7 @@
       },
       "versions": [
         {
-          "version": "0.14.0",
+          "version": "0.15.0",
           "publishTimestamp": 1793898268,
           "source": {
             "type": "git",

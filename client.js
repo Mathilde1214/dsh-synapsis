@@ -36,6 +36,7 @@ function createMindMap(React) {
     var i
     for (i = 0; i < nodes.length; i++) {
       var raw = nodes[i]
+      if (!raw || !raw.id || byId.has(raw.id)) continue /* 重复 id：保留第一个，别让同一节点进树两次 */
       byId.set(raw.id, {
         id: raw.id,
         title: raw.title || '未命名',
@@ -53,15 +54,27 @@ function createMindMap(React) {
     }
     var root = null
     var forced = rootId ? byId.get(rootId) : null
+    var orphans = []
     for (i = 0; i < nodes.length; i++) {
       var item = nodes[i]
+      if (!item || !item.id) continue
       var node = byId.get(item.id)
+      if (!node) continue
       var parent = item.parent ? byId.get(item.parent) : null
       if (parent && parent !== node) parent.children.push(node)
       else if (!root) root = node
+      else orphans.push(node)
     }
     if (forced) root = forced
     if (!root) return null
+    /* 悬空的 parent（写错的 id）不该让节点消失：按「根的直接子节点」接回来 */
+    for (i = 0; i < orphans.length; i++) {
+      var orphan = orphans[i]
+      if (orphan !== root && orphan.parent !== root.id) {
+        orphan.parent = root.id
+        root.children.push(orphan)
+      }
+    }
 
     var order = []
     /* 防环：坏数据里父子互指会让递归无限下去，seen 兜住（数据修复前至少不白屏） */
@@ -95,8 +108,10 @@ function createMindMap(React) {
     var radius = []
     for (i = 0; i < counts.length; i++) {
       var w = W0 * Math.pow(INV, i)
+      /* 第 3 层往下画的是圆点（LOD 里 detail>=3），按点径算，别按卡片宽度把环撑开 */
+      var effW = i >= 3 ? w * 0.36 : w
       var geometric = i === 0 ? 0 : radius[i - 1] + RING * Math.pow(INV, i - 1)
-      var needed = counts[i] ? (counts[i] * w * 1.18) / (2 * Math.PI) : 0
+      var needed = counts[i] ? (counts[i] * effW * 1.18) / (2 * Math.PI) : 0
       radius[i] = Math.max(geometric, needed)
     }
 
@@ -380,6 +395,15 @@ function createMindMap(React) {
     '.sn-searchbtn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border-radius:6px;flex:none;',
     'border:1px solid rgba(120,100,70,.24);background:transparent;color:var(--dsw-alias-label-secondary,#7a6a56);font:inherit;font-size:12px;cursor:pointer;}',
     '.sn-searchbtn kbd{font:inherit;font-size:10.5px;opacity:.62;}',
+    '.sn-exportwrap{position:relative;flex:none;}',
+    '.sn-exportmenu{position:absolute;right:0;top:30px;min-width:140px;display:flex;flex-direction:column;padding:4px;',
+    'border-radius:8px;background:var(--sn-surface,#fffaf0);border:1px solid var(--sn-line,rgba(120,100,70,.24));',
+    'box-shadow:var(--sn-shadow-float,0 10px 26px rgba(60,45,28,.22));z-index:40;}',
+    '.sn-exportitem{appearance:none;border:0;background:transparent;font:inherit;font-size:12.5px;text-align:left;',
+    'padding:6px 9px;border-radius:6px;cursor:pointer;color:var(--sn-ink,#2f2a24);}',
+    '.sn-exportitem:hover{background:rgba(120,100,70,.12);}',
+    '.sn-card[data-dragging="1"]{opacity:.6;outline:1.5px dashed rgba(190,128,35,.92);outline-offset:3px;}',
+    '.sn-card[data-drop="1"]{box-shadow:0 0 0 2px rgba(190,128,35,.92),0 0 22px rgba(190,128,35,.28);}',
     '.sn-searchwrap{position:absolute;inset:0;z-index:30;display:flex;justify-content:center;align-items:flex-start;',
     'padding:56px 16px 16px;background:rgba(30,24,18,.22);}',
     '.sn-search{width:100%;max-width:560px;border-radius:12px;overflow:hidden;',
@@ -652,6 +676,16 @@ function createMindMap(React) {
     var edgeSel = edgeSelState[0]
     var setEdgeSel = edgeSelState[1]
 
+    /* 导出菜单开关 */
+    var exportState = useState(false)
+    var exportOpen = exportState[0]
+    var setExportOpen = exportState[1]
+
+    /* 拖拽改父：正在搬的节点 + 悬停的目标 */
+    var moveState = useState(null)
+    var moving = moveState[0]
+    var setMoving = moveState[1]
+
     var canvasRef = useRef(null)
     var sceneRef = useRef(null)
     var miniRectRef = useRef(null)
@@ -747,6 +781,13 @@ function createMindMap(React) {
       setSearchOpen(true)
     }, [])
 
+    /* 键盘回调里用到的动作都经这个 ref 取：effect 只绑一次，永远拿到最新实现 */
+    var actionsRef = useRef(null)
+
+    /* 相机只改 transform：layout 走 ref，这样标识稳定，手势监听不会因为数据变化被反复重绑 */
+    var layoutRef = useRef(null)
+    layoutRef.current = layout
+
     var applyCamera = useCallback(function () {
       var cam = camRef.current
       if (sceneRef.current) {
@@ -761,8 +802,9 @@ function createMindMap(React) {
       }, 160)
       var el = canvasRef.current
       var rect = miniRectRef.current
-      if (el && rect && layout) {
-        var b = layout.bounds
+      var lay = layoutRef.current
+      if (el && rect && lay) {
+        var b = lay.bounds
         var vw = el.clientWidth || 1
         var vh = el.clientHeight || 1
         var left = (0 - cam.x) / cam.k
@@ -775,7 +817,7 @@ function createMindMap(React) {
         rect.setAttribute('width', String(Math.max(4, (vw / cam.k) * scale)))
         rect.setAttribute('height', String(Math.max(4, (vh / cam.k) * scale)))
       }
-    }, [layout])
+    }, [])
 
     var animateTo = useCallback(function (target) {
       var el = canvasRef.current
@@ -996,6 +1038,9 @@ function createMindMap(React) {
         if (event.button !== 0) return
         /* Shift 是「连边」修饰键：不要同时把画布拖走 */
         if (event.shiftKey) return
+        /* 卡片上的按下交给卡片自己（连边 / 拖拽改父），别顺手把画布也拖走 */
+        var hitCard = event.target && event.target.closest ? event.target.closest('.sn-card') : null
+        if (hitCard) return
         pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
         if (pointers.size === 1) {
           dragging = true
@@ -1059,6 +1104,7 @@ function createMindMap(React) {
 
     useEffect(function () {
       var onKey = function (event) {
+        var A = actionsRef.current || {}
         var key = String(event.key || '').toLowerCase()
         if ((event.metaKey || event.ctrlKey) && key === 'k') {
           event.preventDefault()
@@ -1069,7 +1115,7 @@ function createMindMap(React) {
         }
         if ((event.metaKey || event.ctrlKey) && key === 'z') {
           event.preventDefault()
-          undo()
+          if (A.undo) A.undo()
           return
         }
         if (event.key === 'Escape') {
@@ -1089,6 +1135,7 @@ function createMindMap(React) {
             setEdgeSel(null)
             return
           }
+          if (A.closeExport && A.closeExport()) return
           if (selectedId) setSelectedId('')
           return
         }
@@ -1097,28 +1144,28 @@ function createMindMap(React) {
         /* 选中一条关系边时，删除键删的是这条线，不是节点 */
         if (edgeSel && (event.key === 'Delete' || event.key === 'Backspace')) {
           event.preventDefault()
-          removeEdge()
+          if (A.removeEdge) A.removeEdge()
           return
         }
         if (!selectedId || !editable) return
         if (event.key === 'Tab') {
           event.preventDefault()
-          addChild(selectedId)
+          if (A.addChild) A.addChild(selectedId)
         } else if (event.key === 'Enter') {
           event.preventDefault()
-          addSibling(selectedId)
+          if (A.addSibling) A.addSibling(selectedId)
         } else if (event.key === 'F2') {
           event.preventDefault()
           var cur = nodesById.get(selectedId)
           if (cur) setEditing({ id: cur.id, draft: cur.title || '' })
         } else if (event.key === 'Delete' || event.key === 'Backspace') {
-          var kids = childCount(selectedId)
+          var kids = A.childCount ? A.childCount(selectedId) : 0
           if (kids > 0) {
             event.preventDefault()
             setPendingDelete({ id: selectedId, count: kids })
           } else {
             event.preventDefault()
-            doDelete(selectedId, true)
+            if (A.doDelete) A.doDelete(selectedId, true)
           }
         }
       }
@@ -1126,7 +1173,7 @@ function createMindMap(React) {
       return function () {
         window.removeEventListener('keydown', onKey)
       }
-    }, [addChild, addSibling, childCount, doDelete, editable, edgeSel, editing, nodesById, pendingDelete, removeEdge, searchOpen, selectedId, undo])
+    }, [edgeSel, editing, nodesById, pendingDelete, searchOpen, selectedId, editable])
 
     /* 搜索框打开就聚焦；结果变了把光标收回第一行 */
     useEffect(function () {
@@ -1508,6 +1555,289 @@ function createMindMap(React) {
       commitData(nodes, edges, 'delete:' + id)
     }, [collectDescendants, commitData, data, layout, nodesById, selectedId])
 
+    /* ---------------- 导出：整张图 → SVG / PNG / Markdown 大纲 ---------------- */
+
+    var EXPORT_INK = '#2f2a24'
+    var EXPORT_INK2 = '#6b5f4e'
+    var EXPORT_LINE = '#604a2e'
+    var EXPORT_LINE_OPACITY = '0.42'
+    var EXPORT_AMBER = '#be8023'
+    var EXPORT_TEAL = '#209682'
+    var EXPORT_ROSE = '#ba4068'
+
+    var escXml = function (s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+    }
+
+    /* 按卡片宽度折行：中文近似 1 字宽 = 1em，英文按 0.55em 估 */
+    var wrapTitle = function (title, px, fs, maxLines) {
+      var per = Math.max(2, Math.floor((px * 0.86) / fs))
+      var text = String(title || '')
+      var lines = []
+      var buf = ''
+      var width = 0
+      for (var i = 0; i < text.length; i++) {
+        var ch = text.charAt(i)
+        var w = /[\x00-\xff]/.test(ch) ? 0.55 : 1
+        if (width + w > per) {
+          lines.push(buf)
+          buf = ''
+          width = 0
+          if (lines.length >= maxLines) break
+        }
+        buf += ch
+        width += w
+      }
+      if (buf && lines.length < maxLines) lines.push(buf)
+      if (!lines.length) lines.push('')
+      if (lines.length === maxLines) {
+        var joined = lines.join('')
+        if (joined.length < text.length) lines[maxLines - 1] = lines[maxLines - 1].slice(0, Math.max(1, lines[maxLines - 1].length - 1)) + '…'
+      }
+      return lines
+    }
+
+    var buildExportSvg = useCallback(function () {
+      if (!data || !data.nodes || !data.nodes.length) return null
+      /* 导出「你现在看到的这一层」：和画布同一套换根逻辑，图才不会散成一整本书 */
+      var lay = buildLayout(data.nodes, pathState ? null : focusId || null)
+      if (!lay) return null
+      var b = lay.bounds
+      var pad = 60
+      var w = Math.ceil(b.w + pad * 2)
+      var h = Math.ceil(b.h + pad * 2)
+      var ox = pad - b.x
+      var oy = pad - b.y
+      var parts = []
+      parts.push('<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">')
+      parts.push('<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="#f4efe3"/>')
+
+      /* 从属边 */
+      for (var i = 0; i < lay.order.length; i++) {
+        var n = lay.order[i]
+        if (!n.parent) continue
+        var p = lay.byId.get(n.parent)
+        if (!p || !lay.visible.has(p.id)) continue
+        var dx = n.x - p.x
+        var dy = n.y - p.y
+        var d = Math.hypot(dx, dy) || 1
+        var ux = dx / d
+        var uy = dy / d
+        var sx = p.x + ux * (p.w / 2) * 0.96
+        var sy = p.y + uy * (p.h / 2) * 0.96
+        var ex = n.x - ux * (n.w / 2) * 0.96
+        var ey = n.y - uy * (n.h / 2) * 0.96
+        var mx = (sx + ex) / 2
+        var my = (sy + ey) / 2
+        var pull = 0.16
+        var cx = mx + (mx - (p.x + n.x) / 2) * pull
+        var cy = my + (my - (p.y + n.y) / 2) * pull
+        /* 卡片是加过 ox/oy 的，线也必须抬到同一坐标系，否则全挤在左上角 */
+        sx += ox
+        sy += oy
+        cx += ox
+        cy += oy
+        ex += ox
+        ey += oy
+        parts.push(
+          '<path d="M' + sx.toFixed(1) + ' ' + sy.toFixed(1) + 'Q' + cx.toFixed(1) + ' ' + cy.toFixed(1) + ' ' + ex.toFixed(1) + ' ' + ey.toFixed(1) + '" fill="none" stroke="' + EXPORT_LINE + '" stroke-opacity="' + EXPORT_LINE_OPACITY + '" stroke-width="' + Math.max(0.8, 1.6 * Math.pow(0.75, n.depth)) + '"/>',
+        )
+      }
+
+      /* 关系边 */
+      var seenPair = {}
+      for (var e = 0; e < (data.edges || []).length; e++) {
+        var edge = data.edges[e]
+        var a = lay.byId.get(edge.from)
+        var c = lay.byId.get(edge.to)
+        if (!a || !c || a === c) continue
+        if (!lay.visible.has(a.id) || !lay.visible.has(c.id)) continue
+        var key = a.id + '>' + c.id
+        if (seenPair[key]) continue
+        seenPair[key] = true
+        var color = edge.type === 'prereq' ? EXPORT_AMBER : edge.type === 'contrast' ? EXPORT_ROSE : EXPORT_TEAL
+        var dash = edge.type === 'related' ? ' stroke-dasharray="1 5"' : edge.type === 'contrast' ? ' stroke-dasharray="9 4 2 4"' : ' stroke-dasharray="7 5"'
+        var vx = c.x - a.x
+        var vy = c.y - a.y
+        var vd = Math.hypot(vx, vy) || 1
+        var ax = a.x + (vx / vd) * (a.w / 2) * 0.9 + ox
+        var ay = a.y + (vy / vd) * (a.h / 2) * 0.9 + oy
+        var bx = c.x - (vx / vd) * (c.w / 2) * 0.9 + ox
+        var by = c.y - (vy / vd) * (c.h / 2) * 0.9 + oy
+        parts.push(
+          '<path d="M' + ax.toFixed(1) + ' ' + ay.toFixed(1) + 'L' + bx.toFixed(1) + ' ' + by.toFixed(1) + '" fill="none" stroke="' + color + '" stroke-opacity="0.85" stroke-width="1.4"' + dash + '/>',
+        )
+      }
+
+      /* 卡片：深的层收成小圆点，跟画布上的 LOD 一致 */
+      for (var k = 0; k < lay.order.length; k++) {
+        var node = lay.order[k]
+        var x = node.x + ox
+        var y = node.y + oy
+        if (node.depth >= 3) {
+          parts.push('<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (node.w * 0.18).toFixed(1) + '" fill="' + EXPORT_INK2 + '" fill-opacity="0.5"/>')
+          continue
+        }
+        var fs = Math.max(5, node.w * (node.depth === 0 ? 0.115 : 0.1))
+        var lines = wrapTitle(node.title, node.w, fs, node.depth === 0 ? 2 : 1)
+        parts.push(
+          '<rect x="' + (x - node.w / 2).toFixed(1) + '" y="' + (y - node.h / 2).toFixed(1) + '" width="' + node.w.toFixed(1) + '" height="' + node.h.toFixed(1) + '" rx="' + (8 * Math.pow(0.8, node.depth)).toFixed(1) + '" fill="#fffaf0" stroke="' + (node.depth === 0 ? EXPORT_INK : EXPORT_LINE) + '"' + (node.depth === 0 ? '' : ' stroke-opacity="' + EXPORT_LINE_OPACITY + '"') + ' stroke-width="' + (node.depth === 0 ? 1.6 : 1) + '"/>',
+        )
+        for (var li = 0; li < lines.length; li++) {
+          var ly = y + (li - (lines.length - 1) / 2) * fs * 1.18 + fs * 0.34
+          parts.push(
+            '<text x="' + x.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" font-family="KaiTi, STKaiti, \'Noto Serif SC\', serif" font-size="' + fs.toFixed(1) + '" fill="' + EXPORT_INK + '">' + escXml(lines[li]) + '</text>',
+          )
+        }
+      }
+
+      parts.push('</svg>')
+      return { svg: parts.join(''), w: w, h: h }
+    }, [data, focusId, pathState])
+
+    var downloadBlob = function (blob, filename) {
+      var url = URL.createObjectURL(blob)
+      var a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(function () {
+        URL.revokeObjectURL(url)
+      }, 4000)
+    }
+
+    var exportBaseName = function () {
+      var t = String((data && (data.title || data.id)) || 'synapsis').replace(/[\\/:*?"<>|]+/g, '-')
+      return t || 'synapsis'
+    }
+
+    var exportMap = useCallback(function (kind) {
+      var built = buildExportSvg()
+      if (!built) return
+      var name = exportBaseName()
+      if (kind === 'md') {
+        var lines = ['# ' + (data.title || '概念图'), '']
+        if (data.subtitle) lines.push('> ' + data.subtitle, '')
+        var walkMd = function (id, depth) {
+          var node = nodesById.get(id)
+          if (!node) return
+          lines.push(new Array(depth + 1).join('  ') + '- **' + (node.title || '未命名') + '**' + (node.summary ? ' — ' + node.summary : ''))
+          if (node.definition) lines.push(new Array(depth + 1).join('  ') + '  - 定义：' + node.definition)
+          if (node.formal) lines.push(new Array(depth + 1).join('  ') + '  - 形式化：`' + node.formal + '`')
+          if (node.intuition) lines.push(new Array(depth + 1).join('  ') + '  - 直觉：' + node.intuition)
+          if (node.examples) lines.push(new Array(depth + 1).join('  ') + '  - 例子：' + node.examples)
+          if (node.pitfalls) lines.push(new Array(depth + 1).join('  ') + '  - 易错点：' + node.pitfalls)
+          if (node.source && node.source.page) lines.push(new Array(depth + 1).join('  ') + '  - 出处：第 ' + node.source.page + ' 页')
+          for (var i = 0; i < data.nodes.length; i++) {
+            if (data.nodes[i].parent === id) walkMd(data.nodes[i].id, depth + 1)
+          }
+        }
+        var roots = data.nodes.filter(function (n) {
+          return !n.parent || !nodesById.get(n.parent)
+        })
+        for (var r = 0; r < roots.length; r++) walkMd(roots[r].id, 0)
+        downloadBlob(new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' }), name + '.md')
+        return
+      }
+      if (kind === 'svg') {
+        downloadBlob(new Blob([built.svg], { type: 'image/svg+xml;charset=utf-8' }), name + '.svg')
+        return
+      }
+      /* PNG：把 SVG 画进 canvas（2 倍超采样，最长边封顶 5000px） */
+      var ratio = Math.min(2, 5000 / Math.max(built.w, built.h))
+      var img = new Image()
+      img.onload = function () {
+        var canvas = document.createElement('canvas')
+        canvas.width = Math.round(built.w * ratio)
+        canvas.height = Math.round(built.h * ratio)
+        var g = canvas.getContext('2d')
+        g.fillStyle = '#f4efe3'
+        g.fillRect(0, 0, canvas.width, canvas.height)
+        g.drawImage(img, 0, 0, canvas.width, canvas.height)
+        canvas.toBlob(function (blob) {
+          if (blob) downloadBlob(blob, name + '.png')
+        }, 'image/png')
+      }
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(built.svg)
+    }, [buildExportSvg, data, nodesById])
+
+    /* 拖拽改父：拖过 5px 才算「搬」，否则还是一次点击选中 */
+    var dragRef = useRef(null)
+
+    var beginMove = useCallback(
+      function (id, event) {
+        if (!editable || !data) return false
+        dragRef.current = { id: id, x: event.clientX, y: event.clientY, active: false, over: '' }
+        return true
+      },
+      [data, editable],
+    )
+
+    var reparent = useCallback(
+      function (id, parentId) {
+        if (!editable || !data || !layout || !id || !parentId || id === parentId) return
+        var node = nodesById.get(id)
+        var target = nodesById.get(parentId)
+        if (!node || !target) return
+        if (node.parent === parentId) return
+        /* 不能把一个节点搬进它自己的子孙里，否则整棵树断开 */
+        if (collectDescendants(id).indexOf(parentId) >= 0) return
+        updateNode(id, { parent: parentId }, 'move:' + id)
+      },
+      [collectDescendants, data, editable, layout, nodesById, updateNode],
+    )
+
+    useEffect(
+      function () {
+        var onMove = function (event) {
+          var st = dragRef.current
+          if (!st) return
+          if (!st.active) {
+            if (Math.hypot(event.clientX - st.x, event.clientY - st.y) < 5) return
+            st.active = true
+            setMoving({ id: st.id, over: '' })
+            setSelectedId(st.id)
+          }
+          var el = document.elementFromPoint(event.clientX, event.clientY)
+          var card = el && el.closest ? el.closest('.sn-card') : null
+          var over = card ? card.getAttribute('data-id') : ''
+          if (over === st.id) over = ''
+          if (over !== st.over) {
+            st.over = over
+            setMoving({ id: st.id, over: over })
+          }
+        }
+        var finish = function (commit) {
+          var st = dragRef.current
+          dragRef.current = null
+          if (!st) return
+          setMoving(null)
+          if (commit && st.active && st.over) reparent(st.id, st.over)
+        }
+        var onUp = function () {
+          finish(true)
+        }
+        var onCancel = function () {
+          finish(false)
+        }
+        window.addEventListener('pointermove', onMove)
+        window.addEventListener('pointerup', onUp)
+        window.addEventListener('pointercancel', onCancel)
+        return function () {
+          window.removeEventListener('pointermove', onMove)
+          window.removeEventListener('pointerup', onUp)
+          window.removeEventListener('pointercancel', onCancel)
+        }
+      },
+      [reparent],
+    )
+
     /* ---------------- 编辑：连边 ---------------- */
 
     /* 同一对概念只留一条关系：连第一次是「前置」，再连一次换「关联」→「对比」，第四次取消 */
@@ -1729,12 +2059,20 @@ function createMindMap(React) {
               'data-dim': pathState ? (inPath ? '0' : '1') : rel < 0 ? '1' : '0',
               'data-path': pathIds.has(node.id) ? '1' : '0',
               'data-dot': detail === 3 ? '1' : '0',
+              'data-dragging': moving && moving.id === node.id ? '1' : '0',
+              'data-drop': moving && moving.over === node.id ? '1' : '0',
               onPointerDown: function (id) {
                 return function (event) {
-                  if (!event.shiftKey || !editable) return
+                  if (!editable) return
+                  if (event.button !== 0) return
+                  if (event.shiftKey) {
+                    event.stopPropagation()
+                    event.preventDefault()
+                    beginLink(id, event)
+                    return
+                  }
                   event.stopPropagation()
-                  event.preventDefault()
-                  beginLink(id, event)
+                  beginMove(id, event)
                 }
               }(node.id),
               onClick: function (id) {
@@ -2181,6 +2519,21 @@ function createMindMap(React) {
       sideContent = h('div', { className: 'sn-mut' }, '点一个概念看详情。')
     }
 
+    actionsRef.current = {
+      undo: undo,
+      removeEdge: removeEdge,
+      addChild: addChild,
+      addSibling: addSibling,
+      doDelete: doDelete,
+      childCount: childCount,
+      exportMap: exportMap,
+      closeExport: function () {
+        if (!exportOpen) return false
+        setExportOpen(false)
+        return true
+      },
+    }
+
     if (!layout) {
       return h('div', { className: 'sn-root', 'data-theme': props.theme }, h('style', null, CSS), h('div', { className: 'sn-empty' }, props.emptyText || '还没有内容'))
     }
@@ -2227,6 +2580,30 @@ function createMindMap(React) {
           h('span', null, '搜索'),
           h('kbd', null, '⌘K'),
         ),
+        h(
+          'div',
+          { className: 'sn-exportwrap', onClick: function (e) { e.stopPropagation() } },
+          h(
+            'button',
+            {
+              className: 'sn-searchbtn',
+              onClick: function () {
+                setExportOpen(!exportOpen)
+              },
+              title: '把这张图导出成图片或大纲',
+            },
+            '导出',
+          ),
+          exportOpen
+            ? h(
+                'div',
+                { className: 'sn-exportmenu' },
+                h('button', { className: 'sn-exportitem', onClick: function () { setExportOpen(false); exportMap('png') } }, 'PNG 图片'),
+                h('button', { className: 'sn-exportitem', onClick: function () { setExportOpen(false); exportMap('svg') } }, 'SVG 矢量图'),
+                h('button', { className: 'sn-exportitem', onClick: function () { setExportOpen(false); exportMap('md') } }, 'Markdown 大纲'),
+              )
+            : null,
+        ),
         props.onToggleTheme
           ? h(
               'button',
@@ -2261,6 +2638,7 @@ function createMindMap(React) {
             onClick: function () {
               setSelectedId('')
               setEdgeSel(null)
+              setExportOpen(false)
             },
           },
           edgeSel && editable
@@ -2333,11 +2711,13 @@ function createMindMap(React) {
           { className: 'sn-hint' },
           linking
             ? '拖到另一个概念上松开：连一条关系（同向再连一次换类型，第三次取消）'
-            : edgeSel
-              ? '选中了一条关系线：上面可换类型或删掉 · Esc 取消'
-              : editable
-                ? '滚轮缩放 · 拖拽平移 · 双击进入 · Tab 新建 · F2 改名 · Del 删除 · Shift 拖拽连边 · 点线可编辑 · ⌘Z 撤销'
-                : '滚轮缩放 · 拖拽平移 · 双击进入子层',
+            : moving
+              ? '松手落在这张卡上，就把它挂到它下面（不能拖进自己的子孙里）'
+              : edgeSel
+                ? '选中了一条关系线：上面可换类型或删掉 · Esc 取消'
+                : editable
+                  ? '滚轮缩放 · 拖拽平移 · 拖卡片改归属 · 双击进入 · Tab 新建 · F2 改名 · Del 删除 · Shift 连边 · ⌘Z 撤销'
+                  : '滚轮缩放 · 拖拽平移 · 双击进入子层',
         ),
           props.liveText ? h('div', { className: 'sn-live' }, props.liveText) : null,
           h(
@@ -2709,8 +3089,25 @@ function Panel() {
     [save],
   )
 
-  const removeMap = React.useCallback(async () => {
-    const target = nameRef.current
+  /* 新建一张空白图：根节点就叫「未命名图」，进去按 F2 改 */
+  const newMap = React.useCallback(async () => {
+    setStatus('新建中…')
+    try {
+      const res = await fetch('/synapsis-api/create', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: '未命名图' }),
+      })
+      const payload = await res.json().catch(() => null)
+      if (!res.ok || (payload && payload.ok === false)) throw new Error((payload && payload.error) || 'HTTP ' + res.status)
+      await openNamed(payload.name)
+      setStatus('已新建：按 Tab 加概念，F2 改根节点名字')
+    } catch (err) {
+      setStatus('新建失败：' + (err && err.message ? err.message : String(err)))
+    }
+  }, [openNamed])
+
+  const removeMap = React.useCallback(async () => {    const target = nameRef.current
     if (!target) return
     setArmDelete(false)
     setStatus('删除中…')
@@ -2815,9 +3212,18 @@ function Panel() {
           )
         : null,
       hh(
-        'button',
-        { style: { font: 'inherit', fontSize: 12.5, padding: '5px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
-        '重新读取',
+        'div',
+        { style: { display: 'flex', gap: 10 } },
+        hh(
+          'button',
+          { style: { font: 'inherit', fontSize: 13, padding: '6px 14px', cursor: 'pointer' }, onClick: newMap },
+          '新建一张空白图',
+        ),
+        hh(
+          'button',
+          { style: { font: 'inherit', fontSize: 12.5, padding: '5px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
+          '重新读取',
+        ),
       ),
     )
   }
@@ -2830,6 +3236,16 @@ function Panel() {
   const leading = hh(
     React.Fragment,
     null,
+    hh(
+      'button',
+      {
+        className: 'sn-chip',
+        title: '新建一张空白图',
+        onClick: newMap,
+        style: { opacity: 0.8 },
+      },
+      '+ 新建',
+    ),
     hh(
       'select',
       {

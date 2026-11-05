@@ -1,6 +1,6 @@
 {
   "name": "dsh-synapsis",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Synapsis 析域 —— 把讲义铺成一张能走进去的概念图（DSH Web UI 面板插件）",
   "keywords": [
     "dsh",

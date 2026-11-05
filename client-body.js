@@ -167,8 +167,25 @@ function Panel() {
     [save],
   )
 
-  const removeMap = React.useCallback(async () => {
-    const target = nameRef.current
+  /* 新建一张空白图：根节点就叫「未命名图」，进去按 F2 改 */
+  const newMap = React.useCallback(async () => {
+    setStatus('新建中…')
+    try {
+      const res = await fetch('/synapsis-api/create', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: '未命名图' }),
+      })
+      const payload = await res.json().catch(() => null)
+      if (!res.ok || (payload && payload.ok === false)) throw new Error((payload && payload.error) || 'HTTP ' + res.status)
+      await openNamed(payload.name)
+      setStatus('已新建：按 Tab 加概念，F2 改根节点名字')
+    } catch (err) {
+      setStatus('新建失败：' + (err && err.message ? err.message : String(err)))
+    }
+  }, [openNamed])
+
+  const removeMap = React.useCallback(async () => {    const target = nameRef.current
     if (!target) return
     setArmDelete(false)
     setStatus('删除中…')
@@ -273,9 +290,18 @@ function Panel() {
           )
         : null,
       hh(
-        'button',
-        { style: { font: 'inherit', fontSize: 12.5, padding: '5px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
-        '重新读取',
+        'div',
+        { style: { display: 'flex', gap: 10 } },
+        hh(
+          'button',
+          { style: { font: 'inherit', fontSize: 13, padding: '6px 14px', cursor: 'pointer' }, onClick: newMap },
+          '新建一张空白图',
+        ),
+        hh(
+          'button',
+          { style: { font: 'inherit', fontSize: 12.5, padding: '5px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
+          '重新读取',
+        ),
       ),
     )
   }
@@ -288,6 +314,16 @@ function Panel() {
   const leading = hh(
     React.Fragment,
     null,
+    hh(
+      'button',
+      {
+        className: 'sn-chip',
+        title: '新建一张空白图',
+        onClick: newMap,
+        style: { opacity: 0.8 },
+      },
+      '+ 新建',
+    ),
     hh(
       'select',
       {

@@ -125,6 +125,69 @@ async function handler(req, res) {
     }
   }
 
+  /* 新建一份空白图：只放一个根节点，图库下拉里立刻能看到 */
+  if (sub === '/create' && req.method === 'POST') {
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}')
+      const rawTitle = String((body && body.title) || '').trim() || '未命名图'
+      const requested = String((body && body.name) || '').trim()
+      await fs.mkdir(HOME, { recursive: true })
+
+      let name = ''
+      if (requested && safeName(requested)) {
+        name = requested
+      } else {
+        const slug = rawTitle
+          .replace(/\.mindmap\.json$/i, '')
+          .replace(/[^\p{L}\p{N}_-]+/gu, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 40) || 'map'
+        name = slug + '.mindmap.json'
+        let n = 2
+        while (true) {
+          try {
+            await fs.access(path.join(HOME, name))
+            name = slug + '-' + n + '.mindmap.json'
+            n += 1
+          } catch {
+            break
+          }
+        }
+      }
+
+      const now = new Date().toISOString()
+      const doc = {
+        version: 1,
+        title: rawTitle,
+        subtitle: '',
+        updated: now,
+        nodes: [
+          {
+            id: 'root',
+            title: rawTitle,
+            parent: null,
+            summary: '',
+            definition: '',
+            formal: '',
+            intuition: '',
+            examples: '',
+            pitfalls: '',
+            mastery: 0,
+            note: '',
+          },
+        ],
+        edges: [],
+      }
+      const full = path.join(HOME, name)
+      const tmp = full + '.tmp'
+      await fs.writeFile(tmp, JSON.stringify(doc, null, 2), 'utf8')
+      await fs.rename(tmp, full)
+      return sendJSON(res, 200, { ok: true, name, dir: HOME, data: doc })
+    } catch (err) {
+      return sendJSON(res, 500, { ok: false, error: err.message })
+    }
+  }
+
   /* 删掉整份图：不直接 unlink，先挪到 <库>/.trash/ 里，误删还能捞回来 */
   if (sub === '/delete' && (req.method === 'POST' || req.method === 'DELETE')) {
     try {
