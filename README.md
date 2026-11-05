@@ -30,13 +30,47 @@
 
 ## 安装
 
-这个目录就是一个插件包（`package.json` 里带 `dsh.bundle.patch`），装进 DSH profile 即可：
+这个目录本身就是一个 DSH **bundle 包**（`package.json` 里带 `dsh.bundle.patch`，`engines.dsh` 声明兼容的 DSH 版本），
+三种标准装法任选其一。装完刷新宿主页面（或重启 DSH），侧栏会出现「析域」图标。
+
+**1. 从 GitHub 装（推荐，无需任何构建）**
+
+```sh
+dsh plugin --profile desktop add github:Mathilde1214/synapsis
+```
+
+本包是纯 JavaScript，`client.js` 等产物随仓库一起提交，因此不需要 `prepare` 构建，
+也不会要求你为它开启 pnpm 的 `allowBuilds` 授权。
+
+**2. 从 tarball 装（离线 / 内网）**
+
+```sh
+pnpm pack            # 在仓库根目录执行，得到 synapsis-0.8.0.tgz
+dsh plugin --profile desktop add ./synapsis-0.8.0.tgz
+```
+
+**3. 在 DSH 里用面板装本地目录**
 
 ```
 plugin_manager: install_bundle, target = <这个目录的绝对路径>
 ```
 
-装完重启或刷新宿主页面，侧栏会出现「析域」图标。
+**卸载**
+
+```sh
+dsh plugin --profile desktop remove synapsis
+```
+
+**兼容性**：`engines.dsh` 是 `>=0.2.2-rc.1 <0.3.0`。DSH 在安装和启动 profile 时都会校验它，
+不满足会直接拒绝并说明原因。要在更老或更新的 DSH 上跑，改这一段再装即可——
+面板只用到 `slots` 与 `webServer` 两个稳定扩展点。
+
+**从插件索引装**：仓库里带了 `plugin-market/index.json`（DSH 的**自定义插件索引**格式），
+在 DSH 的「插件 → 发现 → 添加索引源」里填这个文件的 https URL，就能像应用商店一样浏览和安装：
+
+```
+https://raw.githubusercontent.com/Mathilde1214/synapsis/main/plugin-market/index.json
+```
 
 ## 数据放哪
 
