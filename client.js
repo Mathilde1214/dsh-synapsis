@@ -1383,6 +1383,13 @@ function createMindMap(React) {
       return true
     }, [drawLink, editable])
 
+    /* 橡皮筋线必须能被彻底擦掉：松手、取消、失焦、按 Esc、滚轮缩放都要清，
+       否则那条屏幕坐标的虚线会留在原地（不随缩放平移移动，也选不中） */
+    var clearLink = useCallback(function () {
+      var path = linkPathRef.current
+      if (path) path.setAttribute('d', '')
+    }, [])
+
     useEffect(function () {
       if (!linking) return
       var onMove = function (event) {
@@ -1391,6 +1398,7 @@ function createMindMap(React) {
       var onUp = function (event) {
         var fromId = linkFromRef.current
         linkFromRef.current = ''
+        clearLink()
         setLinking(null)
         var node = document.elementFromPoint(event.clientX, event.clientY)
         var card = node && node.closest ? node.closest('.sn-card') : null
@@ -1399,17 +1407,38 @@ function createMindMap(React) {
       }
       var onCancel = function () {
         linkFromRef.current = ''
+        clearLink()
         setLinking(null)
+      }
+      var onKey = function (event) {
+        if (event.key === 'Escape') onCancel()
+      }
+      var onWheel = function () {
+        onCancel()
       }
       window.addEventListener('pointermove', onMove)
       window.addEventListener('pointerup', onUp)
       window.addEventListener('pointercancel', onCancel)
+      window.addEventListener('blur', onCancel)
+      window.addEventListener('keydown', onKey)
+      window.addEventListener('wheel', onWheel, { passive: true })
       return function () {
         window.removeEventListener('pointermove', onMove)
         window.removeEventListener('pointerup', onUp)
         window.removeEventListener('pointercancel', onCancel)
+        window.removeEventListener('blur', onCancel)
+        window.removeEventListener('keydown', onKey)
+        window.removeEventListener('wheel', onWheel)
       }
-    }, [drawLink, linkEdge, linking])
+    }, [drawLink, linkEdge, linking, clearLink])
+
+    /* 兜底：linking 一旦结束，残留的线一律擦掉（不管走的是哪条退出路径） */
+    useEffect(
+      function () {
+        if (!linking) clearLink()
+      },
+      [linking, clearLink],
+    )
 
     var focusLevel = focusNode ? focusNode.depth : 0
     var cards = []
