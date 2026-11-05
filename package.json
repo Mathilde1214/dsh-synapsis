@@ -45,9 +45,7 @@
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": [
-        "slots"
-      ]
+      "inject": []
     }
   },
   "license": "MIT",
