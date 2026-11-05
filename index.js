@@ -57,8 +57,80 @@ async function readBody(req, limit = 16 * 1024 * 1024) {
   return Buffer.concat(chunks).toString('utf8')
 }
 
-async function listMaps() {
-  await fs.mkdir(HOME, { recursive: true })
+/* 第一次装上、库里一张图都没有时，放一张四节点的小样图。
+   它只教「这个面板怎么用」，不是教材；`.seeded` 落盘后就不再生，
+   所以用户把它删掉也不会再冒出来。 */
+const SEEDED = path.join(HOME, '.seeded')
+const SAMPLE_NAME = '示例-从这里开始.mindmap.json'
+
+function sampleDoc() {
+  const node = (id, title, parent, summary, extra) =>
+    Object.assign(
+      {
+        id,
+        title,
+        parent,
+        summary,
+        definition: '',
+        formal: '',
+        intuition: '',
+        examples: '',
+        pitfalls: '',
+        mastery: 0,
+        note: '',
+      },
+      extra || {},
+    )
+  return {
+    version: 1,
+    title: '示例 · 从这里开始',
+    subtitle: '一张很小的图，看完就知道怎么用',
+    updated: new Date().toISOString(),
+    nodes: [
+      node('root', '示例 · 从这里开始', null, '一张很小的图，看完就知道怎么用', {
+        definition:
+          '越往里越细，缩回去就是上一层。这张示例只演示操作，删掉它也不影响别的图。',
+        intuition: '把它当成有纵深的思维导图：同一屏里，近的概念详细、远的概念只是一个点。',
+      }),
+      node('scroll', '滚轮就是层级', 'root', '往前推进入下一层，缩一半退回上一层', {
+        definition: '滚轮以光标为锚缩放：每一层的字号都被钉在可读的大小，再往前推就走进离你最近的子分支。',
+        intuition: '不需要「打开新窗口」。深度就是缩放本身。',
+      }),
+      node('sidebar', '侧栏是概念卡', 'root', '选中一个概念，右边是它的定义、形式化、直觉、例子、易错点', {
+        definition:
+          '点一张卡，右侧栏显示它的正文、原文出处、前置与引出、掌握度和个人笔记。双击任意一栏就能改，改完自动存回文件。',
+        examples: '形式化那一栏支持 LaTeX，编辑时显示源码，下面实时给出排版后的样子。',
+      }),
+      node('keys', '几个顺手的键', 'root', '⌘K 搜索 · Tab 加子概念 · Shift 拖拽连边 · ⌘Z 撤销', {
+        definition:
+          'Tab 加子概念、Enter 加同级、F2 改名、Delete 删除；按住 Shift 从一张卡拖到另一张建一条关系边；⌘K 搜索全图。',
+        pitfalls: '删除一个有子概念的节点时会问：一起删掉，还是只删它、把子概念上提。',
+      }),
+      node('export', '导出与换纸', 'root', '顶栏右边：搜索、导出、日光纸/夜光纸', {
+        definition: '导出给 PNG、SVG 和 Markdown 大纲；导的是当前这一层。纸色两套，会记住你的选择。',
+      }),
+    ],
+    edges: [
+      { from: 'scroll', to: 'sidebar', type: 'related' },
+      { from: 'sidebar', to: 'keys', type: 'related' },
+    ],
+  }
+}
+
+async function ensureSample() {
+  try {
+    await fs.mkdir(HOME, { recursive: true })
+    if (fsSync.existsSync(SEEDED)) return
+    const names = await fs.readdir(HOME)
+    if (names.some((n) => NAME_RE.test(n))) return
+    await fs.writeFile(path.join(HOME, SAMPLE_NAME), JSON.stringify(sampleDoc(), null, 2), 'utf8')
+    await fs.writeFile(SEEDED, new Date().toISOString() + '\n', 'utf8')
+  } catch {
+    /* 示例图是可选的，写不进去也不该影响插件启动 */
+  }
+}
+
+async function listMaps() {  await fs.mkdir(HOME, { recursive: true })
   const entries = await fs.readdir(HOME, { withFileTypes: true })
   const out = []
   for (const entry of entries) {
@@ -227,6 +299,7 @@ async function handler(req, res) {
 }
 
 export function apply(ctx) {
+  ensureSample()
   ctx.effect(() =>
     ctx.webServer.register({
       kind: 'prefix',

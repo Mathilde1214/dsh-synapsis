@@ -388,6 +388,7 @@ function createMindMap(React) {
     '.sn-searchbtn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border-radius:6px;flex:none;',
     'border:1px solid rgba(120,100,70,.24);background:transparent;color:var(--dsw-alias-label-secondary,#7a6a56);font:inherit;font-size:12px;cursor:pointer;}',
     '.sn-searchbtn kbd{font:inherit;font-size:10.5px;opacity:.62;}',
+    '.sn-searchbtn[data-on="1"]{background:rgba(190,128,35,.16);}',
     '.sn-exportwrap{position:relative;flex:none;}',
     '.sn-exportmenu{position:absolute;right:0;top:30px;min-width:140px;display:flex;flex-direction:column;padding:4px;',
     'border-radius:8px;background:var(--sn-surface,#fffaf0);border:1px solid var(--sn-line,rgba(120,100,70,.24));',
@@ -397,6 +398,44 @@ function createMindMap(React) {
     '.sn-exportitem:hover{background:rgba(120,100,70,.12);}',
     '.sn-card[data-dragging="1"]{opacity:.6;outline:1.5px dashed rgba(190,128,35,.92);outline-offset:3px;}',
     '.sn-card[data-drop="1"]{box-shadow:0 0 0 2px rgba(190,128,35,.92),0 0 22px rgba(190,128,35,.28);}',
+    /* 大纲视图 */
+    '.sn-outline{position:absolute;inset:0;z-index:6;overflow:auto;padding:18px 18px 42px;',
+    'background:var(--sn-paper,#f4efe3);}',
+    '.sn-olinner{max-width:780px;margin:0 auto;}',
+    '.sn-olrow{display:flex;align-items:center;gap:7px;min-height:28px;border-radius:6px;cursor:pointer;',
+    'color:var(--sn-ink,#2f2a24);font:inherit;font-size:13.5px;padding:2px 8px;}',
+    '.sn-olrow:hover{background:rgba(120,100,70,.1);}',
+    '.sn-olrow[data-on="1"]{background:rgba(190,128,35,.16);}',
+    '.sn-olcaret{flex:none;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;',
+    'border-radius:4px;color:var(--sn-ink-2,#6b5f4e);opacity:.66;}',
+    '.sn-olcaret:before{content:"";width:0;height:0;border-left:5px solid currentColor;',
+    'border-top:4px solid transparent;border-bottom:4px solid transparent;transform:rotate(90deg);}',
+    '.sn-olcaret[data-folded="1"]:before{transform:none;}',
+    '.sn-olcaret:hover{background:rgba(120,100,70,.16);opacity:1;}',
+    '.sn-olcaret[data-empty="1"]{visibility:hidden;}',
+    '.sn-oltitle{flex:none;max-width:62%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+    '.sn-olrow[data-lv="0"] .sn-oltitle{font-weight:700;font-size:15px;}',
+    '.sn-olspacer{flex:1;min-width:8px;}',
+    '.sn-olen{font-size:11px;opacity:.5;font-style:italic;flex:none;}',
+    '.sn-oldot{flex:none;width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.22;}',
+    '.sn-oldot[data-m="1"]{background:#c98a2e;opacity:.9;}',
+    '.sn-oldot[data-m="2"]{background:#2f8f7d;opacity:.9;}',
+    /* 复习浮窗 */
+    '.sn-review{position:absolute;inset:0;z-index:12;display:flex;align-items:center;justify-content:center;',
+    'padding:24px;background:rgba(30,24,18,.42);}',
+    '.sn-rvcard{width:100%;max-width:620px;max-height:100%;overflow:auto;border-radius:14px;padding:20px 22px 16px;',
+    'background:var(--sn-surface,#fffaf0);border:1px solid var(--sn-line,rgba(120,100,70,.24));',
+    'box-shadow:var(--sn-shadow-panel,0 18px 48px rgba(60,45,28,.3));}',
+    '.sn-rvhead{display:flex;align-items:baseline;gap:10px;font-size:12px;color:var(--sn-ink-3,#8c8071);}',
+    '.sn-rvtitle{margin:8px 0 4px;font-size:22px;font-weight:700;letter-spacing:.02em;}',
+    '.sn-rven{font-size:12.5px;font-style:italic;opacity:.6;margin-bottom:10px;}',
+    '.sn-rvbody{border-top:1px solid var(--sn-line-2,rgba(120,100,70,.16));padding-top:10px;',
+    'font-size:13.5px;line-height:1.62;}',
+    '.sn-rvacts{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;}',
+    '.sn-rvbtn{appearance:none;font:inherit;font-size:13px;padding:7px 14px;border-radius:8px;cursor:pointer;',
+    'border:1px solid var(--sn-line,rgba(120,100,70,.24));background:transparent;color:var(--sn-ink,#2f2a24);}',
+    '.sn-rvbtn:hover{background:rgba(120,100,70,.1);}',
+    '.sn-rvbtn[data-main="1"]{border-color:transparent;background:var(--sn-accent,#9a6b3f);color:#fffaf0;}',
     '.sn-searchwrap{position:absolute;inset:0;z-index:30;display:flex;justify-content:center;align-items:flex-start;',
     'padding:56px 16px 16px;background:rgba(30,24,18,.22);}',
     '.sn-search{width:100%;max-width:560px;border-radius:12px;overflow:hidden;',
@@ -679,6 +718,23 @@ function createMindMap(React) {
     var moving = moveState[0]
     var setMoving = moveState[1]
 
+    /* 视图模式：'map' 画布 / 'outline' 大纲；复习是一层浮窗，与模式无关 */
+    var viewState = useState('map')
+    var viewMode = viewState[0]
+    var setViewMode = viewState[1]
+
+    /* 大纲里收起来的节点（只有 id，不进文件） */
+    var foldState = useState(function () {
+      return {}
+    })
+    var folds = foldState[0]
+    var setFolds = foldState[1]
+
+    /* 复习：队列 + 当前下标 + 是否已翻面 */
+    var reviewState = useState(null)
+    var review = reviewState[0]
+    var setReview = reviewState[1]
+
     var canvasRef = useRef(null)
     var sceneRef = useRef(null)
     var miniRectRef = useRef(null)
@@ -772,6 +828,96 @@ function createMindMap(React) {
       setSearchQuery('')
       setSearchCursor(0)
       setSearchOpen(true)
+    }, [])
+
+    /* ---- 大纲视图 ---- */
+    var toggleFold = useCallback(function (id) {
+      setFolds(function (prev) {
+        var next = Object.assign({}, prev)
+        if (next[id]) delete next[id]
+        else next[id] = 1
+        return next
+      })
+    }, [])
+
+    /* 大纲永远从整份图的根开始排（跟画布焦点无关），这样长图里才找得到东西 */
+    var outlineRows = useMemo(
+      function () {
+        if (!data || !data.nodes) return []
+        var kids = {}
+        var rootId = ''
+        for (var i = 0; i < data.nodes.length; i++) {
+          var n = data.nodes[i]
+          if (!n || !n.id) continue
+          if (!n.parent) {
+            if (!rootId) rootId = n.id
+            continue
+          }
+          ;(kids[n.parent] || (kids[n.parent] = [])).push(n)
+        }
+        if (!rootId && data.nodes.length) rootId = data.nodes[0].id
+        var rows = []
+        var seen = {}
+        var walk = function (node, level) {
+          if (!node || seen[node.id]) return
+          seen[node.id] = 1
+          var list = kids[node.id] || []
+          rows.push({
+            id: node.id,
+            title: node.title,
+            en: node.en || '',
+            level: level,
+            kids: list.length,
+            mastery: node.mastery || 0,
+            folded: !!folds[node.id],
+          })
+          if (folds[node.id]) return
+          for (var j = 0; j < list.length; j++) walk(list[j], level + 1)
+        }
+        walk(nodesById.get(rootId), 0)
+        return rows
+      },
+      [data, folds, nodesById],
+    )
+
+    /* ---- 复习：先收「模糊」的，再收「没读过」的，最后才是已掌握的 ---- */
+    var startReview = useCallback(
+      function () {
+        var pool = []
+        ;(data && data.nodes ? data.nodes : []).forEach(function (n) {
+          if (!n || !n.id || !n.parent) return
+          pool.push(n)
+        })
+        if (!pool.length) return
+        var rank = function (n) {
+          return n.mastery === 1 ? 0 : n.mastery === 0 ? 1 : 2
+        }
+        pool.sort(function (a, b) {
+          return rank(a) - rank(b) || String(a.title) < String(b.title) ? -1 : 1
+        })
+        setReview({
+          queue: pool.slice(0, 15).map(function (n) {
+            return n.id
+          }),
+          i: 0,
+          shown: false,
+        })
+      },
+      [data],
+    )
+
+    var gradeReview = useCallback(
+      function (level) {
+        if (!review) return
+        var id = review.queue[review.i]
+        if (id) updateNode(id, { mastery: level }, 'mastery:' + id)
+        setReview({ queue: review.queue, i: review.i + 1, shown: false })
+      },
+      [review, updateNode],
+    )
+
+    var closeReview = useCallback(function () {
+      setReview(null)
     }, [])
 
     /* 键盘回调里用到的动作都经这个 ref 取：effect 只绑一次，永远拿到最新实现 */
@@ -1128,6 +1274,7 @@ function createMindMap(React) {
             setEdgeSel(null)
             return
           }
+          if (A.closeReview && A.closeReview()) return
           if (A.closeExport && A.closeExport()) return
           if (selectedId) setSelectedId('')
           return
@@ -2525,6 +2672,11 @@ function createMindMap(React) {
         setExportOpen(false)
         return true
       },
+      closeReview: function () {
+        if (!review) return false
+        setReview(null)
+        return true
+      },
     }
 
     if (!layout) {
@@ -2563,6 +2715,27 @@ function createMindMap(React) {
           }),
         ),
         props.statusText ? h('span', { className: 'sn-status' }, props.statusText) : null,
+        h(
+          'button',
+          {
+            className: 'sn-searchbtn',
+            'data-on': viewMode === 'outline' ? '1' : '0',
+            onClick: function () {
+              setViewMode(viewMode === 'outline' ? 'map' : 'outline')
+            },
+            title: viewMode === 'outline' ? '回到画布' : '换成大纲：一屏看到更多概念',
+          },
+          viewMode === 'outline' ? '画布' : '大纲',
+        ),
+        h(
+          'button',
+          {
+            className: 'sn-searchbtn',
+            onClick: startReview,
+            title: '按掌握度抽一批概念过一遍（模糊的排前面）',
+          },
+          '复习',
+        ),
         h(
           'button',
           {
@@ -2767,6 +2940,147 @@ function createMindMap(React) {
             }),
           ),
         ),
+        viewMode === 'outline'
+          ? h(
+              'div',
+              {
+                className: 'sn-outline',
+                onClick: function (e) {
+                  e.stopPropagation()
+                },
+              },
+              h(
+                'div',
+                { className: 'sn-olinner' },
+                outlineRows.map(function (row) {
+                return h(
+                  'div',
+                  {
+                    key: row.id,
+                    className: 'sn-olrow',
+                    'data-on': selectedId === row.id ? '1' : '0',
+                    'data-lv': String(Math.min(row.level, 4)),
+                    style: { paddingLeft: 6 + row.level * 16 + 'px' },
+                    onClick: function () {
+                      setSelectedId(row.id)
+                    },
+                  },
+                  h('span', {
+                    className: 'sn-olcaret',
+                    'data-empty': row.kids ? '0' : '1',
+                    'data-folded': row.folded ? '1' : '0',
+                    onClick: function (e) {
+                      e.stopPropagation()
+                      if (row.kids) toggleFold(row.id)
+                    },
+                  }),
+                  h('span', { className: 'sn-oltitle' }, row.title),
+                  row.en ? h('span', { className: 'sn-olen' }, row.en) : null,
+                  h('span', { className: 'sn-olspacer' }),
+                  h('span', { className: 'sn-oldot', 'data-m': String(row.mastery), title: ['未读', '模糊', '掌握'][row.mastery] || '' }),
+                )
+              }),
+                ),
+            )
+          : null,
+        review
+          ? (function () {
+              var total = review.queue.length
+              var done = review.i >= total
+              var cur = done ? null : nodesById.get(review.queue[review.i]) || {}
+              var field = function (label, text, mono) {
+                if (!text) return null
+                var html = renderMath ? renderMath(text, !!mono) : null
+                return h(
+                  'div',
+                  { style: { marginTop: 9 } },
+                  h('div', { className: 'sn-label' }, label),
+                  html
+                    ? h('div', { dangerouslySetInnerHTML: { __html: html } })
+                    : h('div', { style: { whiteSpace: 'pre-wrap' } }, text),
+                )
+              }
+              return h(
+                'div',
+                {
+                  className: 'sn-review',
+                  onMouseDown: function (e) {
+                    if (e.target === e.currentTarget) closeReview()
+                  },
+                },
+                h(
+                  'div',
+                  { className: 'sn-rvcard' },
+                  h(
+                    'div',
+                    { className: 'sn-rvhead' },
+                    h('span', null, done ? '复习完成' : '复习 ' + (review.i + 1) + ' / ' + total),
+                    h(
+                      'span',
+                      { style: { marginLeft: 'auto', cursor: 'pointer', opacity: 0.7 }, onClick: closeReview },
+                      'Esc 退出',
+                    ),
+                  ),
+                  done
+                    ? h(
+                        'div',
+                        null,
+                        h('div', { className: 'sn-rvtitle' }, '这一轮过完了'),
+                        h('div', { className: 'sn-rvbody' }, '掌握度已经写回文件。模糊的和没读过的会排在前头，所以下一轮会不一样。'),
+                        h(
+                          'div',
+                          { className: 'sn-rvacts' },
+                          h('button', { className: 'sn-rvbtn', 'data-main': '1', onClick: startReview }, '再来一轮'),
+                          h('button', { className: 'sn-rvbtn', onClick: closeReview }, '回去看图'),
+                        ),
+                      )
+                    : h(
+                        'div',
+                        null,
+                        h('div', { className: 'sn-rvtitle' }, cur.title || ''),
+                        cur.en ? h('div', { className: 'sn-rven' }, cur.en) : null,
+                        review.shown
+                          ? h(
+                              'div',
+                              { className: 'sn-rvbody' },
+                              field('定义', cur.definition, false) ||
+                                field('直觉', cur.intuition, false) ||
+                                h('div', { style: { opacity: 0.6 } }, '这个概念还没有正文。'),
+                              field('形式化', cur.formal, true),
+                              field('例子', cur.examples, false),
+                              field('易错点', cur.pitfalls, false),
+                            )
+                          : h(
+                              'div',
+                              { className: 'sn-rvbody', style: { opacity: 0.72 } },
+                              cur.summary || '先在心里回想一遍，再翻面看正文。',
+                            ),
+                        h(
+                          'div',
+                          { className: 'sn-rvacts' },
+                          review.shown
+                            ? [
+                                h('button', { key: 'a', className: 'sn-rvbtn', onClick: function () { gradeReview(0) } }, '没印象'),
+                                h('button', { key: 'b', className: 'sn-rvbtn', onClick: function () { gradeReview(1) } }, '有点模糊'),
+                                h('button', { key: 'c', className: 'sn-rvbtn', 'data-main': '1', onClick: function () { gradeReview(2) } }, '会了'),
+                              ]
+                            : h(
+                                'button',
+                                {
+                                  className: 'sn-rvbtn',
+                                  'data-main': '1',
+                                  onClick: function () {
+                                    setReview({ queue: review.queue, i: review.i, shown: true })
+                                  },
+                                },
+                                '显示答案',
+                              ),
+                        ),
+                      ),
+                ),
+              )
+            })()
+          : null,
         h('aside', { className: 'sn-sidebar', 'data-collapsed': collapsed ? '1' : '0' }, collapsed ? null : h('div', { className: 'sn-side' }, sideContent)),
       ),
       searchOpen

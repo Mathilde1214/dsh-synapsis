@@ -63,6 +63,42 @@ function safeName(raw) {
   return NAME_RE.test(name) ? name : null
 }
 
+/* 空库时放一张小样图（与 index.js 的 ensureSample 等价，联调时用） */
+async function seedIfEmpty() {
+  try {
+    await fs.mkdir(DATA, { recursive: true })
+    if (existsSync(path.join(DATA, '.seeded'))) return
+    const names = await fs.readdir(DATA)
+    if (names.some((n) => NAME_RE.test(n))) return
+    const node = (id, title, parent, summary, extra) =>
+      Object.assign(
+        { id, title, parent, summary, definition: '', formal: '', intuition: '', examples: '', pitfalls: '', mastery: 0, note: '' },
+        extra || {},
+      )
+    const doc = {
+      version: 1,
+      title: '示例 · 从这里开始',
+      subtitle: '一张很小的图，看完就知道怎么用',
+      updated: new Date().toISOString(),
+      nodes: [
+        node('root', '示例 · 从这里开始', null, '一张很小的图，看完就知道怎么用', {
+          definition: '越往里越细，缩回去就是上一层。这张示例只演示操作。',
+        }),
+        node('scroll', '滚轮就是层级', 'root', '往前推进入下一层，缩一半退回上一层'),
+        node('sidebar', '侧栏是概念卡', 'root', '选中一个概念，右边是它的正文与出处'),
+        node('keys', '几个顺手的键', 'root', '⌘K 搜索 · Tab 加子概念 · Shift 拖拽连边 · ⌘Z 撤销'),
+        node('export', '导出与换纸', 'root', '顶栏右边：搜索、导出、日光纸/夜光纸'),
+      ],
+      edges: [
+        { from: 'scroll', to: 'sidebar', type: 'related' },
+        { from: 'sidebar', to: 'keys', type: 'related' },
+      ],
+    }
+    await fs.writeFile(path.join(DATA, '示例-从这里开始.mindmap.json'), JSON.stringify(doc, null, 2), 'utf8')
+    await fs.writeFile(path.join(DATA, '.seeded'), new Date().toISOString() + '\n', 'utf8')
+  } catch {}
+}
+
 async function listMaps() {
   let names = []
   try {
@@ -208,6 +244,7 @@ const server = http.createServer(async (req, res) => {
 })
 
 if (!existsSync(DATA)) console.warn('[dev] 图库目录不存在：' + DATA)
+await seedIfEmpty()
 server.listen(PORT, HOST, () => {
   console.log('[dev] 联调页 http://' + HOST + ':' + PORT + '/')
   console.log('[dev] 图库 ' + DATA)

@@ -68,6 +68,10 @@ Click "析域" in the sidebar and the panel takes over the main area.
 
 **Export**: the top bar's "导出" gives you a PNG, an SVG, or a Markdown outline. It exports **the layer you're looking at**, not the whole book — go back to the root with the breadcrumb if you want everything. Pick SVG when you need detail: it stays sharp at any zoom. The Markdown outline suits pasting into a notes app.
 
+**Outline view**: "大纲" swaps the canvas for a tree of the whole map, starting at its root regardless of where the canvas is focused. Click a row to select it (the side panel follows), double-click to jump the canvas there. The triangle folds a branch; the dot on the right is its mastery. With two hundred concepts this beats zooming around.
+
+**Review**: "复习" picks a batch of concepts — title first, recall it, then flip to the definition, formal statement, examples and pitfalls, and grade yourself "没印象 / 有点模糊 / 会了". The grade is written back to `mastery`, so the fuzzy ones lead the next round. Fifteen per round.
+
 ### Keyboard
 
 | Key | Action |
@@ -142,7 +146,7 @@ The first available location wins:
 | 2 | `<home>/Synapsis` | Default. `C:\Users\<you>\Synapsis` on Windows, `/Users/<you>/Synapsis` on macOS, `/home/<you>/Synapsis` on Linux |
 | 3 | `E:\dsh工作空间\析域` | Legacy path for pre-0.13 installs: used only if it already exists |
 
-The empty state prints the folder in use, so you can select and copy it instead of guessing. It's created on first use. Each map in that folder is a `*.mindmap.json`:
+The empty state prints the folder in use, so you can select and copy it instead of guessing. It's created on first use. On a first install, when the folder holds no maps at all, a five-node sample ("示例 · 从这里开始") is dropped in — it only explains the controls, and deleting it won't bring it back. Each map in that folder is a `*.mindmap.json`:
 
 ```json
 {
@@ -199,6 +203,7 @@ npm run dev       # node tools/dev-server.mjs, then open http://127.0.0.1:7788/
 - The panel occupies the host's main panel, so it and the conversation view are mutually exclusive — you switch back and forth.
 - Relation edges only surface near the focus; otherwise a few hundred nodes turn into yarn. To see a particular relation, go into its chapter first.
 - Multi-select isn't implemented yet. Export covers the current layer rather than typesetting the whole book in one go.
+- Review only ranks concepts by mastery; there is no real spaced repetition yet — it doesn't remember when you last saw a concept.
 - Since the host shows one main panel at a time, you can't watch the map and chat side by side in one window; two browser tabs on the same port works.
 
 ## From a textbook to a map
