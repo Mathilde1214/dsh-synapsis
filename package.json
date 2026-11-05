@@ -1,6 +1,6 @@
 {
   "name": "synapsis",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Synapsis 析域 —— 概念图面板",
   "type": "module",
   "main": "index.js",

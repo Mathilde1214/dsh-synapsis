@@ -305,6 +305,18 @@ function createMindMap(React) {
     '.sn-legend{position:absolute;left:12px;bottom:12px;z-index:4;display:flex;flex-direction:column;gap:3px;',
     'font-size:11px;color:var(--dsw-alias-label-tertiary,#a2957f);pointer-events:none;}',
     '.sn-legend i{display:inline-block;width:16px;height:0;margin-right:6px;vertical-align:middle;}',
+    '.sn-pathlist{list-style:none;margin:10px 0 0;padding:0;}',
+    '.sn-pathstep{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border-radius:7px;cursor:pointer;}',
+    '.sn-pathstep:hover{background:rgba(154,107,63,.08);}',
+    '.sn-pathstep[data-on="1"]{background:rgba(154,107,63,.14);}',
+    '.sn-pathnum{flex:none;width:20px;height:20px;border-radius:50%;border:1px solid rgba(154,107,63,.5);color:#9a6b3f;',
+    'font-size:11px;display:flex;align-items:center;justify-content:center;margin-top:2px;}',
+    '.sn-pathstep[data-last="1"] .sn-pathnum{background:#9a6b3f;color:#fff;border-color:#9a6b3f;}',
+    '.sn-pathtxt{display:flex;flex-direction:column;gap:2px;min-width:0;}',
+    '.sn-pathtitle{font-size:13.5px;color:var(--dsw-alias-label-primary,#2f2a24);}',
+    '.sn-pathsum{font-size:11.5px;line-height:1.45;color:var(--dsw-alias-label-tertiary,#8a7a63);}',
+    '.sn-pathsub{font-size:11.5px;line-height:1.6;color:var(--dsw-alias-label-tertiary,#8a7a63);margin-top:4px;}',
+    '.sn-card[data-path="1"]{box-shadow:0 0 0 2px rgba(154,107,63,.42),0 10px 20px -16px rgba(60,40,20,.7);}',
     '.sn-emptyfield{margin:.1em 0 .5em;padding:.5em .6em;border:1px dashed rgba(150,120,80,.35);border-radius:7px;color:rgba(90,72,48,.65);font-size:12.5px;line-height:1.5;}',
     '.sn-hint{position:absolute;left:12px;top:10px;z-index:4;font-size:11px;color:var(--dsw-alias-label-tertiary,#a2957f);',
     'background:rgba(255,253,246,.7);padding:3px 8px;border-radius:999px;pointer-events:none;}',
@@ -466,9 +478,15 @@ function createMindMap(React) {
     var setLodK = lodState[1]
     var renderMath = props.renderMath || null
 
+    /* 学习路径面板：null = 关闭；{kind:'to'|'between', toId, fromId} */
+    var pathStatePair = useState(null)
+    var pathState = pathStatePair[0]
+    var setPathState = pathStatePair[1]
+
     var layout = useMemo(function () {
-      return data && data.nodes ? buildLayout(data.nodes, focusId || null) : null
-    }, [data, focusId])
+      /* 看学习路径时铺开整张图，这样链上的概念都在场，才可能被高亮出来 */
+      return data && data.nodes ? buildLayout(data.nodes, pathState ? null : focusId || null) : null
+    }, [data, focusId, pathState])
 
     var nodesById = useMemo(function () {
       var map = new Map()
@@ -907,6 +925,151 @@ function createMindMap(React) {
       return { out: out, into: into }
     }, [data, selectedId, nodesById])
 
+    var prereqMaps = useMemo(function () {
+      var pre = new Map()
+      var post = new Map()
+      if (!data || !data.edges) return { pre: pre, post: post }
+      for (var i = 0; i < data.edges.length; i++) {
+        var e = data.edges[i]
+        if (!e || !e.from || !e.to || e.from === e.to) continue
+        if (e.type !== 'prereq' && e.type !== 'recommend') continue
+        if (!nodesById.get(e.from) || !nodesById.get(e.to)) continue
+        if (!pre.has(e.to)) pre.set(e.to, [])
+        pre.get(e.to).push(e.from)
+        if (!post.has(e.from)) post.set(e.from, [])
+        post.get(e.from).push(e.to)
+      }
+      return { pre: pre, post: post }
+    }, [data, nodesById])
+
+    var path = useMemo(function () {
+      if (!pathState || !data) return null
+      var pre = prereqMaps.pre
+      var post = prereqMaps.post
+      var to = pathState.toId
+      if (!nodesById.get(to)) return null
+      if (pathState.kind !== 'between') {
+        var seen = {}
+        var stack = [to]
+        var ids = []
+        while (stack.length) {
+          var cur = stack.pop()
+          if (seen[cur]) continue
+          seen[cur] = true
+          ids.push(cur)
+          var list = pre.get(cur) || []
+          for (var i = 0; i < list.length; i++) if (!seen[list[i]]) stack.push(list[i])
+        }
+        var indeg = {}
+        var order = []
+        for (var a = 0; a < ids.length; a++) indeg[ids[a]] = 0
+        for (var b = 0; b < ids.length; b++) {
+          var outs = post.get(ids[b]) || []
+          for (var c = 0; c < outs.length; c++) {
+            if (outs[c] === ids[b] || !seen[outs[c]]) continue
+            indeg[outs[c]]++
+          }
+        }
+        var queue = ids.filter(function (id) {
+          return indeg[id] === 0
+        })
+        queue.sort(function (x, y) {
+          return (nodesById.get(x).depth || 0) - (nodesById.get(y).depth || 0)
+        })
+        while (queue.length) {
+          var nid = queue.shift()
+          order.push(nid)
+          var outs2 = post.get(nid) || []
+          for (var d = 0; d < outs2.length; d++) {
+            var t = outs2[d]
+            if (t === nid || !seen[t]) continue
+            indeg[t]--
+            if (indeg[t] === 0) queue.push(t)
+          }
+        }
+        var cyclic = order.length !== ids.length
+        if (cyclic) {
+          for (var e2 = 0; e2 < ids.length; e2++) if (order.indexOf(ids[e2]) < 0) order.push(ids[e2])
+        }
+        return { kind: 'to', toId: to, ids: order, cyclic: cyclic }
+      }
+      var from = pathState.fromId
+      if (!from || !nodesById.get(from)) return { kind: 'between', fromId: from || '', toId: to, ids: [], cyclic: false }
+      var prevMap = {}
+      var q = [from]
+      var seen2 = {}
+      seen2[from] = true
+      var found = from === to
+      while (q.length && !found) {
+        var n2 = q.shift()
+        var outs3 = post.get(n2) || []
+        for (var k = 0; k < outs3.length; k++) {
+          var t2 = outs3[k]
+          if (seen2[t2]) continue
+          seen2[t2] = true
+          prevMap[t2] = n2
+          if (t2 === to) {
+            found = true
+            break
+          }
+          q.push(t2)
+        }
+      }
+      if (!found) return { kind: 'between', fromId: from, toId: to, ids: [], cyclic: false }
+      var chain = [to]
+      var walk = to
+      while (walk !== from) {
+        walk = prevMap[walk]
+        if (!walk) break
+        chain.unshift(walk)
+      }
+      return { kind: 'between', fromId: from, toId: to, ids: chain, cyclic: false }
+    }, [pathState, data, nodesById, prereqMaps])
+
+    var pathIds = useMemo(function () {
+      var s = new Set()
+      if (path && path.ids) for (var i = 0; i < path.ids.length; i++) s.add(path.ids[i])
+      return s
+    }, [path])
+
+    /* 打开学习路径时，把整条链一次性框进视野（每次开一条新的才动镜头） */
+    var pathFitRef = useRef('')
+    useEffect(
+      function () {
+        if (!path || !path.ids.length || !layout) return
+        var el = canvasRef.current
+        if (!el || !el.clientWidth) return
+        var key = path.ids.join('|')
+        if (pathFitRef.current === key) return
+        pathFitRef.current = key
+        var minX = Infinity
+        var minY = Infinity
+        var maxX = -Infinity
+        var maxY = -Infinity
+        for (var i = 0; i < path.ids.length; i++) {
+          var n = layout.byId.get(path.ids[i])
+          if (!n) continue
+          minX = Math.min(minX, n.x - n.w / 2)
+          maxX = Math.max(maxX, n.x + n.w / 2)
+          minY = Math.min(minY, n.y - n.h / 2)
+          maxY = Math.max(maxY, n.y + n.h / 2)
+        }
+        if (!isFinite(minX)) return
+        var bw = Math.max(1, maxX - minX)
+        var bh = Math.max(1, maxY - minY)
+        var k = Math.min((el.clientWidth * 0.82) / bw, (el.clientHeight * 0.82) / bh)
+        k = Math.max(0.12, Math.min(k, 2.4))
+        animateTo({ cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, k: k })
+      },
+      [path, layout, animateTo],
+    )
+    useEffect(
+      function () {
+        if (!pathState) pathFitRef.current = ''
+      },
+      [pathState],
+    )
+
     var updateNode = useCallback(function (id, patch) {
       if (!editable || !data) return
       var next = {
@@ -1041,8 +1204,10 @@ function createMindMap(React) {
         if (rel > 4) continue
         /* 细节层级由「屏幕上的大小」决定：放大到哪一步，就看到多少字。 */
         var screenW = node.w * (lodK || camRef.current.k || 1)
-        if (rel !== 0 && screenW < 34) continue
+        var inPath = pathIds.has(node.id)
+        if (!inPath && rel !== 0 && screenW < 34) continue
         var detail = screenW < 88 ? 3 : screenW < 190 ? 2 : screenW < 340 ? 1 : 0
+        if (inPath && detail > 2) detail = 2
         /* 焦点和它的一级子节点永远至少显示标题，别缩成一堆灰点 */
         if (rel <= 1 && detail === 3) detail = 2
         var fontSize = node.w * 0.108
@@ -1101,7 +1266,8 @@ function createMindMap(React) {
               style: style,
               'data-sel': node.id === selectedId ? '1' : '0',
               'data-focus': node.id === focusId ? '1' : '0',
-              'data-dim': rel < 0 ? '1' : '0',
+              'data-dim': pathState ? (inPath ? '0' : '1') : rel < 0 ? '1' : '0',
+              'data-path': pathIds.has(node.id) ? '1' : '0',
               'data-dot': detail === 3 ? '1' : '0',
               onClick: function (id) {
                 return function (event) {
@@ -1126,7 +1292,9 @@ function createMindMap(React) {
           var parentNode = layout.byId.get(node.parent)
           if (parentNode) {
             var relDepth = Math.max(node.depth - focusLevel, parentNode.depth - focusLevel)
-            if (relDepth <= 2) {
+            /* 看路径时只留路径上的从属线，别让整张图的线扫过来 */
+            var keepEdge = !pathState || (inPath && pathIds.has(parentNode.id))
+            if (keepEdge && relDepth <= 2) {
               edges.push(
                 h('path', {
                   key: 'e-' + node.id,
@@ -1198,7 +1366,119 @@ function createMindMap(React) {
     }
 
     var sideContent
-    if (selected) {
+    if (pathState && path) {
+      var preNode = nodesById.get(path.toId) || {}
+      var pathTitle =
+        path.kind === 'between'
+          ? '从「' + ((nodesById.get(path.fromId) || {}).title || '（选起点）') + '」到「' + (preNode.title || '') + '」'
+          : '学「' + (preNode.title || '') + '」之前'
+      var pathSteps = []
+      if (!path.ids.length) {
+        pathSteps.push(
+          h(
+            'div',
+            { key: 'none', className: 'sn-mut', style: { marginTop: 12, lineHeight: 1.7 } },
+            path.kind === 'between' ? '这两点之间没有一条前置链连着。' : '它还没有标出任何前置概念。',
+          ),
+        )
+      } else {
+        var stepNodes = path.ids
+        for (var pi = 0; pi < stepNodes.length; pi++) {
+          pathSteps.push(
+            (function (id, idx) {
+              var n = nodesById.get(id)
+              return h(
+                'li',
+                {
+                  key: id,
+                  className: 'sn-pathstep',
+                  'data-on': id === selectedId ? '1' : '0',
+                  'data-last': idx === stepNodes.length - 1 ? '1' : '0',
+                  onClick: function () {
+                    setSelectedId(id)
+                  },
+                },
+                h('span', { className: 'sn-pathnum' }, String(idx + 1)),
+                h(
+                  'span',
+                  { className: 'sn-pathtxt' },
+                  h('span', { className: 'sn-pathtitle' }, n.title || ''),
+                  n.summary ? h('span', { className: 'sn-pathsum' }, n.summary) : null,
+                ),
+              )
+            })(stepNodes[pi], pi),
+          )
+        }
+      }
+      var fromPicker = null
+      if (path.kind === 'between') {
+        var allNodes = Array.from(nodesById.values()).sort(function (x, y) {
+          var dx = x.depth || 0
+          var dy = y.depth || 0
+          if (dx !== dy) return dx - dy
+          return String(x.title || '').localeCompare(String(y.title || ''), 'zh')
+        })
+        fromPicker = h(
+          'select',
+          {
+            className: 'sn-libsel',
+            value: path.fromId || '',
+            onChange: function (event) {
+              setPathState({ kind: 'between', fromId: event.target.value, toId: path.toId })
+            },
+          },
+          h('option', { value: '' }, '选一个起点…'),
+          allNodes.map(function (n) {
+            return h('option', { key: n.id, value: n.id }, n.title || n.id)
+          }),
+        )
+      }
+      sideContent = h(
+        React.Fragment,
+        null,
+        h('div', { className: 'sn-side-head' }, h('div', { className: 'sn-side-title' }, pathTitle)),
+        h(
+          'div',
+          { className: 'sn-pathsub' },
+          path.kind === 'between'
+            ? path.ids.length
+              ? '这条链要经过 ' + path.ids.length + ' 个概念。点一步就选中它。'
+              : '按硬前置找一条从起点通往终点的最短链。'
+            : path.ids.length
+              ? '按前置关系排好的 ' + path.ids.length + ' 步，从最底层走到它。'
+              : '',
+        ),
+        path.cyclic ? h('div', { className: 'sn-pathsub', style: { marginTop: 6 } }, '（前置里有环，已把能排的部分排在前面）') : null,
+        fromPicker ? h('div', { style: { marginTop: 10 } }, fromPicker) : null,
+        pathSteps.length ? h('ol', { className: 'sn-pathlist' }, pathSteps) : null,
+        h(
+          'div',
+          { className: 'sn-rel', style: { marginTop: 14 } },
+          h(
+            'button',
+            {
+              className: 'sn-chip',
+              onClick: function () {
+                setPathState(null)
+              },
+            },
+            '返回概念卡',
+          ),
+          path.kind !== 'between'
+            ? h(
+                'button',
+                {
+                  className: 'sn-chip',
+                  onClick: function () {
+                    setPathState({ kind: 'between', fromId: path.ids[0] || '', toId: path.toId })
+                  },
+                },
+                '换成两点之间',
+              )
+            : null,
+        ),
+      )
+    } else if (selected) {
       var blocks = []
       var titleNode =
         editable && editing && editing.id === selected.id
@@ -1319,6 +1599,28 @@ function createMindMap(React) {
         h(
           'div',
           { key: 'acts', className: 'sn-rel', style: { marginTop: 14 } },
+          h(
+            'button',
+            {
+              className: 'sn-chip',
+              onClick: function () {
+                setPathState({ kind: 'to', toId: selected.id })
+              },
+              title: '看学它之前要先会哪些概念',
+            },
+            '学习路径',
+          ),
+          h(
+            'button',
+            {
+              className: 'sn-chip',
+              onClick: function () {
+                setPathState({ kind: 'between', fromId: '', toId: selected.id })
+              },
+              title: '从某个概念走到它，中间的必经链',
+            },
+            'A → B',
+          ),
           h(
             'button',
             { className: 'sn-chip', onClick: function () { focusOn(selected.id, true) } },
