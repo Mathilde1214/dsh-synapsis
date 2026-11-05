@@ -109,6 +109,22 @@ async function handler(req, res) {
     }
   }
 
+  /* 删掉整份图：不直接 unlink，先挪到 <库>/.trash/ 里，误删还能捞回来 */
+  if (sub === '/delete' && (req.method === 'POST' || req.method === 'DELETE')) {
+    try {
+      const body = req.method === 'POST' ? JSON.parse((await readBody(req)) || '{}') : {}
+      const name = safeName((body && body.name) || url.searchParams.get('name'))
+      if (!name) return sendJSON(res, 400, { ok: false, error: 'bad name' })
+      const trash = path.join(HOME, '.trash')
+      await fs.mkdir(trash, { recursive: true })
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+      await fs.rename(path.join(HOME, name), path.join(trash, name + '.' + stamp))
+      return sendJSON(res, 200, { ok: true, name, trashed: true })
+    } catch (err) {
+      return sendJSON(res, 500, { ok: false, error: err.message })
+    }
+  }
+
   /* 公式资源：插件自带一份 KaTeX（含字体），从自己的路由出，不依赖宿主模块表 */
   if (sub.startsWith('/katex/') && req.method === 'GET') {
     const rel = sub.slice('/katex/'.length)

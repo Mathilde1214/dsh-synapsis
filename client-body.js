@@ -29,12 +29,53 @@ async function jget(url) {
   return parsed
 }
 
+function hostDark() {
+  const body = document.body
+  if (!body) return false
+  if (body.hasAttribute('data-ds-dark-theme')) return true
+  if (body.classList.contains('dark') || body.classList.contains('theme-dark')) return true
+  return document.documentElement.getAttribute('data-theme') === 'dark'
+}
+
 function Panel() {
   const [files, setFiles] = React.useState([])
   const [name, setName] = React.useState('')
   const [doc, setDoc] = React.useState(null)
   const [status, setStatus] = React.useState('读取图库…')
   const [error, setError] = React.useState('')
+  const [armDelete, setArmDelete] = React.useState(false)
+  const [darkHost, setDarkHost] = React.useState(hostDark)
+  const [themeMode, setThemeMode] = React.useState(() => {
+    try {
+      return localStorage.getItem('synapsis.theme') || 'auto'
+    } catch {
+      return 'auto'
+    }
+  })
+  const theme = themeMode === 'auto' ? (darkHost ? 'dark' : 'light') : themeMode
+  const toggleTheme = React.useCallback(() => {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    setThemeMode(next)
+    try {
+      localStorage.setItem('synapsis.theme', next)
+    } catch {}
+  }, [theme])
+
+  /* 宿主切日光/夜间时，auto 模式要跟着变 */
+  React.useEffect(() => {
+    const sync = () => setDarkHost(hostDark())
+    const obs = new MutationObserver(sync)
+    if (document.body) obs.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme', 'class'] })
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] })
+    return () => obs.disconnect()
+  }, [])
+
+  /* 删除要连点两下：第一下只是「举枪」，4 秒内不点就自动放下 */
+  React.useEffect(() => {
+    if (!armDelete) return undefined
+    const timer = setTimeout(() => setArmDelete(false), 4000)
+    return () => clearTimeout(timer)
+  }, [armDelete])
   const katexReady = useKatexReady()
   const renderMath = React.useMemo(
     () => (katexReady && window.katex ? comp.createMathRenderer(window.katex) : null),
@@ -114,6 +155,35 @@ function Panel() {
 
   React.useEffect(() => () => clearTimeout(timerRef.current), [])
 
+  const removeMap = React.useCallback(async () => {
+    const target = nameRef.current
+    if (!target) return
+    setArmDelete(false)
+    setStatus('删除中…')
+    try {
+      const res = await fetch('/synapsis-api/delete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: target }),
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        let parsed = null
+        try {
+          parsed = JSON.parse(text)
+        } catch {}
+        throw new Error((parsed && parsed.error) || 'HTTP ' + res.status)
+      }
+      setName('')
+      setDoc(null)
+      docRef.current = null
+      await openNamed('')
+      setStatus('已删除')
+    } catch (err) {
+      setStatus('删除失败：' + (err && err.message ? err.message : String(err)))
+    }
+  }, [openNamed])
+
   if (error) {
     return hh(
       'div',
@@ -153,6 +223,11 @@ function Panel() {
     )
   }
 
+  const titleCount = {}
+  files.forEach((file) => {
+    titleCount[file.title] = (titleCount[file.title] || 0) + 1
+  })
+
   const leading = hh(
     React.Fragment,
     null,
@@ -164,7 +239,13 @@ function Panel() {
         onChange: (event) => openNamed(event.target.value),
         title: '切换图',
       },
-      files.map((file) => hh('option', { key: file.name, value: file.name }, file.title)),
+      files.map((file) =>
+        hh(
+          'option',
+          { key: file.name, value: file.name },
+          titleCount[file.title] > 1 ? file.title + ' · ' + file.name.replace(/\.mindmap\.json$/, '') : file.title,
+        ),
+      ),
     ),
     hh(
       'button',
@@ -176,11 +257,24 @@ function Panel() {
       },
       '↻',
     ),
+    hh(
+      'button',
+      {
+        className: 'sn-chip',
+        title: armDelete ? '再点一次就真的删了（会挪进库目录的 .trash）' : '删除这份图',
+        onClick: () => (armDelete ? removeMap() : setArmDelete(true)),
+        style: armDelete ? { color: '#b0413a', borderColor: 'rgba(176,65,58,.6)' } : { opacity: 0.7 },
+      },
+      armDelete ? '确认删除「' + (doc.title || name) + '」' : '删除',
+    ),
   )
 
   return hh(MindMap, {
+    key: name,
     data: doc,
     leading,
+    theme,
+    onToggleTheme: toggleTheme,
     renderMath,
     statusText: status,
     onChange,

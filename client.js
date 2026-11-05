@@ -317,6 +317,11 @@ function createMindMap(React) {
     '.sn-pathsum{font-size:11.5px;line-height:1.45;color:var(--dsw-alias-label-tertiary,#8a7a63);}',
     '.sn-pathsub{font-size:11.5px;line-height:1.6;color:var(--dsw-alias-label-tertiary,#8a7a63);margin-top:4px;}',
     '.sn-card[data-path="1"]{box-shadow:0 0 0 2px rgba(154,107,63,.42),0 10px 20px -16px rgba(60,40,20,.7);}',
+    '.sn-root[data-theme="dark"] .sn-pathtitle{color:#efe7d8;}',
+    '.sn-root[data-theme="dark"] .sn-pathsum,.sn-root[data-theme="dark"] .sn-pathsub{color:#a89a84;}',
+    '.sn-root[data-theme="dark"] .sn-pathnum{color:#e8c184;border-color:rgba(232,193,132,.5);}',
+    '.sn-root[data-theme="dark"] .sn-pathstep[data-on="1"]{background:rgba(232,193,132,.16);}',
+    '.sn-root[data-theme="dark"] .sn-pathstep:hover{background:rgba(232,193,132,.1);}',
     '.sn-emptyfield{margin:.1em 0 .5em;padding:.5em .6em;border:1px dashed rgba(150,120,80,.35);border-radius:7px;color:rgba(90,72,48,.65);font-size:12.5px;line-height:1.5;}',
     '.sn-hint{position:absolute;left:12px;top:10px;z-index:4;font-size:11px;color:var(--dsw-alias-label-tertiary,#a2957f);',
     'background:rgba(255,253,246,.7);padding:3px 8px;border-radius:999px;pointer-events:none;}',
@@ -372,6 +377,27 @@ function createMindMap(React) {
     'body[data-ds-dark-theme] .sn-search-row[data-on="1"],.sn-root[data-theme="dark"] .sn-search-row[data-on="1"]{background:rgba(201,155,98,.2);}',
     'body[data-ds-dark-theme] .sn-dialog,.sn-root[data-theme="dark"] .sn-dialog{background:#252119;border-color:rgba(200,180,150,.24);}',
     'body[data-ds-dark-theme] .sn-title-input,.sn-root[data-theme="dark"] .sn-title-input{background:rgba(255,255,255,.06);border-color:rgba(201,155,98,.55);}',
+    /* 学习路径：夜里也要一眼看见（金边 + 外发光），无关的卡片和线退到很暗 */
+    'body[data-ds-dark-theme] .sn-root:not([data-theme="light"]) .sn-card[data-path="1"],.sn-root[data-theme="dark"] .sn-card[data-path="1"]{border-color:rgba(240,200,130,.95);background:#3a3128;color:#fdf6e8;box-shadow:0 0 0 2px rgba(240,200,130,.9),0 0 26px rgba(240,200,130,.34);}',
+    'body[data-ds-dark-theme] .sn-root:not([data-theme="light"]) .sn-card[data-dim="1"],.sn-root[data-theme="dark"] .sn-card[data-dim="1"]{opacity:.3;}',
+    /* 日光纸：宿主是暗色时也能强行回到纸色（特异性高于上面的 dark 规则） */
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"]{background:#f4efe3;color:#2f2a24;}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-topbar{background:rgba(251,247,236,.92);border-color:rgba(120,100,70,.18);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-canvas{background-image:radial-gradient(circle at 1px 1px, rgba(120,100,70,.16) 1px, transparent 0);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card{background:#fffdf6;color:#2f2a24;border-color:rgba(86,68,45,.24);box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 2px 6px rgba(70,55,35,.10);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card[data-focus="1"]{background:#fffaf0;border-color:rgba(120,88,52,.5);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card[data-dot="1"]{background:#bfad90;border-color:rgba(86,68,45,.28);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-sidebar{background:#fbf7ec;border-color:rgba(120,100,70,.18);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-chip{background:#fffdf6;color:#5c4d3c;border-color:rgba(86,68,45,.28);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-note{background:rgba(255,255,255,.62);border-color:rgba(86,68,45,.26);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-mini{background:rgba(251,247,236,.9);border-color:rgba(86,68,45,.22);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-hint{background:rgba(251,247,236,.8);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-live{background:rgba(251,247,236,.95);border-color:rgba(120,100,70,.24);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-search{background:#fffdf7;border-color:rgba(86,68,45,.3);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-search-list{border-color:rgba(86,68,45,.2);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-search-row[data-on="1"]{background:rgba(214,163,74,.18);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-dialog{background:#fffdf7;border-color:rgba(86,68,45,.3);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-title-input{background:rgba(0,0,0,.04);border-color:rgba(154,107,63,.55);}',
   ].join('')
 
   /* ---------------------------------------------------------------- */
@@ -613,6 +639,9 @@ function createMindMap(React) {
       rafRef.current = requestAnimationFrame(step)
     }, [applyCamera])
 
+    /* 搜索跳转时，要把「跳过去的那个概念」摆在正中，而不只是把它的子树塞进视野 */
+    var pendingCenterRef = useRef('')
+
     var focusOn = useCallback(function (id, animate, wide) {
       var el = canvasRef.current
       if (!el) return
@@ -642,13 +671,36 @@ function createMindMap(React) {
         var target = layout ? layout.byId.get(id) : null
         var kids = target && target.children ? target.children.length : 0
         if (kids > 0) {
+          pendingCenterRef.current = id
           focusOn(id, true)
           return
         }
         var parentId = (target && target.parent) || (layout ? layout.root.id : '')
+        pendingCenterRef.current = id
         focusOn(parentId, true)
       },
       [focusOn, layout],
+    )
+
+    /* 把某个概念摆到屏幕正中（关掉学习路径、回到聚焦视图时用） */
+    var centerOn = useCallback(
+      function (id, animate) {
+        var el = canvasRef.current
+        if (!el || !layout) return
+        var node = layout.byId.get(id || layout.root.id) || layout.root
+        var vw = el.clientWidth || 1
+        var vh = el.clientHeight || 1
+        var fit = fitFor(layout, node.id, vw, vh, false)
+        var k = Math.max(0.16, Math.min(fit.k, 3))
+        var target = { cx: node.x, cy: node.y, k: k }
+        if (animate === false) {
+          camRef.current = { x: vw / 2 - target.cx * target.k, y: vh / 2 - target.cy * target.k, k: target.k }
+          applyCamera()
+          return
+        }
+        animateTo(target)
+      },
+      [layout, animateTo, applyCamera],
     )
 
     /* 换根之后，布局会重算：等新布局落地再对准镜头 */
@@ -658,6 +710,13 @@ function createMindMap(React) {
       if (!pending || !el || !layout) return
       pendingFitRef.current = null
       var target = fitFor(layout, focusId || layout.root.id, el.clientWidth || 1, el.clientHeight || 1, pending.wide)
+      /* 搜索跳转：缩放到合适大小，但把跳过去的那个概念摆正中 */
+      var centerId = pendingCenterRef.current
+      if (centerId) {
+        pendingCenterRef.current = ''
+        var cn = layout.byId.get(centerId)
+        if (cn) target = { cx: cn.x, cy: cn.y, k: target.k }
+      }
       if (pending.animate) {
         animateTo(target)
       } else {
@@ -1070,6 +1129,18 @@ function createMindMap(React) {
       [pathState],
     )
 
+    /* 关掉学习路径时，回到「刚才在看的那张卡」并把它摆正中 */
+    var returnFocusRef = useRef('')
+    useEffect(
+      function () {
+        var want = returnFocusRef.current
+        if (!want || pathState) return
+        returnFocusRef.current = ''
+        centerOn(want, true)
+      },
+      [pathState, layout, centerOn],
+    )
+
     var updateNode = useCallback(function (id, patch) {
       if (!editable || !data) return
       var next = {
@@ -1329,14 +1400,17 @@ function createMindMap(React) {
           if (!a || !b) continue
           if (a.depth - focusLevel > 2 || b.depth - focusLevel > 2) continue
           var active = edge.from === selectedId || edge.to === selectedId
+          /* 看学习路径时只留链上的关系线，其余全部让路 */
+          var onPath = pathIds.has(edge.from) && pathIds.has(edge.to)
+          if (pathState && !onPath) continue
           var color = edge.type === 'prereq' ? 'rgba(190,128,35,' : edge.type === 'contrast' ? 'rgba(186,64,104,' : 'rgba(32,150,130,'
           edges.push(
             h('path', {
               key: 'r-' + edge.from + '-' + edge.to,
               d: pathBetween(a, b),
               fill: 'none',
-              stroke: color + (active ? '0.85)' : '0.28)'),
-              strokeWidth: active ? 2.2 : 1.4,
+              stroke: color + (active ? '0.9)' : onPath ? '0.88)' : '0.28)'),
+              strokeWidth: active || onPath ? 2.4 : 1.4,
               strokeDasharray: edge.type === 'contrast' ? '7 4' : '5 4',
               strokeLinecap: 'round',
             }),
@@ -1459,6 +1533,7 @@ function createMindMap(React) {
             {
               className: 'sn-chip',
               onClick: function () {
+                returnFocusRef.current = selectedId || focusId || ''
                 setPathState(null)
               },
             },
@@ -1710,6 +1785,17 @@ function createMindMap(React) {
           h('span', null, '搜索'),
           h('kbd', null, '⌘K'),
         ),
+        props.onToggleTheme
+          ? h(
+              'button',
+              {
+                className: 'sn-searchbtn',
+                onClick: props.onToggleTheme,
+                title: props.theme === 'dark' ? '换成日光纸（亮）' : '换成夜光纸（暗）',
+              },
+              props.theme === 'dark' ? '日光纸' : '夜光纸',
+            )
+          : null,
         h(
           'button',
           {
@@ -1941,12 +2027,53 @@ async function jget(url) {
   return parsed
 }
 
+function hostDark() {
+  const body = document.body
+  if (!body) return false
+  if (body.hasAttribute('data-ds-dark-theme')) return true
+  if (body.classList.contains('dark') || body.classList.contains('theme-dark')) return true
+  return document.documentElement.getAttribute('data-theme') === 'dark'
+}
+
 function Panel() {
   const [files, setFiles] = React.useState([])
   const [name, setName] = React.useState('')
   const [doc, setDoc] = React.useState(null)
   const [status, setStatus] = React.useState('读取图库…')
   const [error, setError] = React.useState('')
+  const [armDelete, setArmDelete] = React.useState(false)
+  const [darkHost, setDarkHost] = React.useState(hostDark)
+  const [themeMode, setThemeMode] = React.useState(() => {
+    try {
+      return localStorage.getItem('synapsis.theme') || 'auto'
+    } catch {
+      return 'auto'
+    }
+  })
+  const theme = themeMode === 'auto' ? (darkHost ? 'dark' : 'light') : themeMode
+  const toggleTheme = React.useCallback(() => {
+    const next = theme === 'dark' ? 'light' : 'dark'
+    setThemeMode(next)
+    try {
+      localStorage.setItem('synapsis.theme', next)
+    } catch {}
+  }, [theme])
+
+  /* 宿主切日光/夜间时，auto 模式要跟着变 */
+  React.useEffect(() => {
+    const sync = () => setDarkHost(hostDark())
+    const obs = new MutationObserver(sync)
+    if (document.body) obs.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme', 'class'] })
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] })
+    return () => obs.disconnect()
+  }, [])
+
+  /* 删除要连点两下：第一下只是「举枪」，4 秒内不点就自动放下 */
+  React.useEffect(() => {
+    if (!armDelete) return undefined
+    const timer = setTimeout(() => setArmDelete(false), 4000)
+    return () => clearTimeout(timer)
+  }, [armDelete])
   const katexReady = useKatexReady()
   const renderMath = React.useMemo(
     () => (katexReady && window.katex ? comp.createMathRenderer(window.katex) : null),
@@ -2026,6 +2153,35 @@ function Panel() {
 
   React.useEffect(() => () => clearTimeout(timerRef.current), [])
 
+  const removeMap = React.useCallback(async () => {
+    const target = nameRef.current
+    if (!target) return
+    setArmDelete(false)
+    setStatus('删除中…')
+    try {
+      const res = await fetch('/synapsis-api/delete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: target }),
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        let parsed = null
+        try {
+          parsed = JSON.parse(text)
+        } catch {}
+        throw new Error((parsed && parsed.error) || 'HTTP ' + res.status)
+      }
+      setName('')
+      setDoc(null)
+      docRef.current = null
+      await openNamed('')
+      setStatus('已删除')
+    } catch (err) {
+      setStatus('删除失败：' + (err && err.message ? err.message : String(err)))
+    }
+  }, [openNamed])
+
   if (error) {
     return hh(
       'div',
@@ -2065,6 +2221,11 @@ function Panel() {
     )
   }
 
+  const titleCount = {}
+  files.forEach((file) => {
+    titleCount[file.title] = (titleCount[file.title] || 0) + 1
+  })
+
   const leading = hh(
     React.Fragment,
     null,
@@ -2076,7 +2237,13 @@ function Panel() {
         onChange: (event) => openNamed(event.target.value),
         title: '切换图',
       },
-      files.map((file) => hh('option', { key: file.name, value: file.name }, file.title)),
+      files.map((file) =>
+        hh(
+          'option',
+          { key: file.name, value: file.name },
+          titleCount[file.title] > 1 ? file.title + ' · ' + file.name.replace(/\.mindmap\.json$/, '') : file.title,
+        ),
+      ),
     ),
     hh(
       'button',
@@ -2088,11 +2255,24 @@ function Panel() {
       },
       '↻',
     ),
+    hh(
+      'button',
+      {
+        className: 'sn-chip',
+        title: armDelete ? '再点一次就真的删了（会挪进库目录的 .trash）' : '删除这份图',
+        onClick: () => (armDelete ? removeMap() : setArmDelete(true)),
+        style: armDelete ? { color: '#b0413a', borderColor: 'rgba(176,65,58,.6)' } : { opacity: 0.7 },
+      },
+      armDelete ? '确认删除「' + (doc.title || name) + '」' : '删除',
+    ),
   )
 
   return hh(MindMap, {
+    key: name,
     data: doc,
     leading,
+    theme,
+    onToggleTheme: toggleTheme,
     renderMath,
     statusText: status,
     onChange,
