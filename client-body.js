@@ -131,11 +131,14 @@ function Panel() {
     const target = nameRef.current
     if (!current || !target) return
     try {
-      await fetch('/synapsis-api/save', {
+      const res = await fetch('/synapsis-api/save', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name: target, data: current }),
       })
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      const payload = await res.json().catch(() => null)
+      if (payload && payload.ok === false) throw new Error(payload.error || '被拒绝')
       setStatus('已保存')
     } catch (err) {
       setStatus('保存失败：' + (err && err.message ? err.message : String(err)))
@@ -153,7 +156,14 @@ function Panel() {
     [save],
   )
 
-  React.useEffect(() => () => clearTimeout(timerRef.current), [])
+  /* 关面板 / 切图前把还在防抖里的那次保存推出去，否则最后 600ms 的改动会丢 */
+  React.useEffect(
+    () => () => {
+      clearTimeout(timerRef.current)
+      save()
+    },
+    [save],
+  )
 
   const removeMap = React.useCallback(async () => {
     const target = nameRef.current

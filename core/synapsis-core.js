@@ -57,7 +57,11 @@ function createMindMap(React) {
     if (!root) return null
 
     var order = []
+    /* 防环：坏数据里父子互指会让递归无限下去，seen 兜住（数据修复前至少不白屏） */
+    var seen = new Set()
     var walk = function (n, depth) {
+      if (!n || seen.has(n)) return
+      seen.add(n)
       n.depth = depth
       order.push(n)
       for (var k = 0; k < n.children.length; k++) walk(n.children[k], depth + 1)
@@ -91,7 +95,10 @@ function createMindMap(React) {
 
     root.x = 0
     root.y = 0
+    var placed = new Set()
     var place = function (n, a0, a1) {
+      if (!n || placed.has(n)) return
+      placed.add(n)
       var total = n.weight || 1
       var cursor = a0
       for (var k = 0; k < n.children.length; k++) {
@@ -213,6 +220,31 @@ function createMindMap(React) {
   /* ---------------------------------------------------------------- */
 
   var CSS = [
+    /* 画布艺术层调色板：整张图是「纸」，属于 docs/web-styling 里说的艺术层，
+       所以下面这套纸色集中声明一次，其余 CSS 只引用变量，不再散落字面色。
+       语义上与宿主 token 对应的项，一律 var(--dsw-alias-…, 纸色) 兜底。 */
+    '.sn-root{',
+    '--sn-paper:var(--dsw-alias-bg-base,#f4efe3);',
+    '--sn-paper-2:var(--dsw-alias-bg-layer-1,#fbf7ec);',
+    '--sn-surface:var(--dsw-alias-bg-layer-2,#fffdf6);',
+    '--sn-surface-focus:#fffaf0;',
+    '--sn-ink:var(--dsw-alias-label-primary,#2f2a24);',
+    '--sn-ink-2:var(--dsw-alias-label-secondary,#4a4034);',
+    '--sn-ink-3:var(--dsw-alias-label-tertiary,#a2957f);',
+    '--sn-line:var(--dsw-alias-border-l1,rgba(86,68,45,.24));',
+    '--sn-line-2:rgba(120,100,70,.16);',
+    '--sn-line-strong:rgba(120,88,52,.5);',
+    '--sn-accent:var(--dsw-alias-brand-primary,#9a6b3f);',
+    '--sn-accent-soft:rgba(154,107,63,.24);',
+    '--sn-amber:var(--dsw-alias-state-warn-primary,#b2782a);',
+    '--sn-teal:var(--dsw-alias-state-success-primary,#208a78);',
+    '--sn-rose:var(--dsw-alias-state-error-primary,#b43c60);',
+    '--sn-dot:#bfad90;',
+    '--sn-shadow-card:0 1px 0 rgba(255,255,255,.7) inset,0 2px 6px rgba(70,55,35,.10);',
+    '--sn-shadow-sel:0 0 0 2px rgba(154,107,63,.24),0 4px 14px rgba(70,55,35,.18);',
+    '--sn-shadow-float:var(--dsw-elevation-prominent,0 10px 30px rgba(60,44,26,.18));',
+    '--sn-shadow-panel:var(--dsw-elevation-panel,0 8px 24px rgba(60,44,26,.16));',
+    '}',
     '.sn-root{position:relative;display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden;',
     'background:var(--dsw-alias-bg-base,#f4efe3);color:var(--dsw-alias-label-primary,#2f2a24);',
     "font-family:'KaiTi','STKaiti','Kaiti SC','Songti SC',serif;}",
@@ -222,8 +254,8 @@ function createMindMap(React) {
     '.sn-crumbs{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden;flex:1;}',
     '.sn-leading{display:flex;align-items:center;gap:6px;flex:none;max-width:40%;}',
     '.sn-libsel{font:inherit;font-size:12.5px;max-width:180px;padding:3px 6px;border-radius:6px;',
-    'border:1px solid rgba(120,100,70,.28);background:transparent;color:inherit;cursor:pointer;}',
-    '.sn-libsel:focus{outline:none;border-color:rgba(120,88,52,.6);}',
+    'border:1px solid var(--sn-line);background:transparent;color:inherit;cursor:pointer;}',
+    '.sn-libsel:focus{outline:none;border-color:var(--sn-line-strong);}',
     '.sn-libsel option{background:var(--dsw-alias-bg-layer-2,#fbf7ec);color:var(--dsw-alias-label-primary,#2f2a24);}',
     '.sn-crumb{font:inherit;font-size:13px;line-height:1;padding:5px 7px;border-radius:6px;border:0;background:transparent;',
     'color:var(--dsw-alias-label-secondary,#7a6a56);cursor:pointer;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;}',
@@ -243,15 +275,18 @@ function createMindMap(React) {
     '.sn-edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none;}',
     '.sn-linklayer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;overflow:visible;}',
     '.sn-root[data-linking="1"] .sn-card{transition:box-shadow .12s ease;}',
+    /* 悬停效果只在真有指针的设备上生效（触屏上 :hover 会「粘住」） */
+    '@media (hover:hover){',
     '.sn-root[data-linking="1"] .sn-card:hover{box-shadow:0 0 0 2px rgba(190,128,35,.75);}',
+    '}',
     '.sn-card{position:absolute;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:2px;overflow:hidden;',
-    'background:#fffdf6;color:#2f2a24;border:1px solid rgba(86,68,45,.24);',
-    'box-shadow:0 1px 0 rgba(255,255,255,.7) inset, 0 2px 6px rgba(70,55,35,.10);',
+    'background:var(--sn-surface);color:var(--sn-ink);border:1px solid var(--sn-line);',
+    'box-shadow:var(--sn-shadow-card);',
     'transition:box-shadow .16s ease, background-color .16s ease, border-color .16s ease;}',
-    '.sn-card[data-sel="1"]{border-color:#9a6b3f;box-shadow:0 0 0 2px rgba(154,107,63,.24), 0 4px 14px rgba(70,55,35,.18);}',
-    '.sn-card[data-focus="1"]{background:#fffaf0;border-color:rgba(120,88,52,.5);}',
+    '.sn-card[data-sel="1"]{border-color:var(--sn-accent);box-shadow:var(--sn-shadow-sel);}',
+    '.sn-card[data-focus="1"]{background:var(--sn-surface-focus);border-color:var(--sn-line-strong);}',
     '.sn-card[data-dim="1"]{opacity:.55;}',
-    '.sn-card[data-dot="1"]{border-radius:50%;background:#bfad90;border-color:rgba(86,68,45,.28);}',
+    '.sn-card[data-dot="1"]{border-radius:50%;background:var(--sn-dot);border-color:var(--sn-line);}',
     ".sn-title{font-family:'KaiTi','STKaiti','Songti SC',serif;font-weight:700;line-height:1.15;padding:0 .14em;",
     'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
     '.sn-title[data-wrap="1"]{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;',
@@ -271,29 +306,36 @@ function createMindMap(React) {
     '.sn-field{margin-top:14px;}',
     '.sn-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dsw-alias-label-tertiary,#a2957f);',
     'margin-bottom:4px;display:flex;align-items:center;gap:6px;}',
-    '.sn-label:after{content:"";flex:1;height:1px;background:rgba(120,100,70,.16);}',
+    '.sn-label:after{content:"";flex:1;height:1px;background:var(--sn-line-2);}',
     '.sn-text{font-size:13.5px;line-height:1.72;white-space:pre-wrap;word-break:break-word;}',
     '.sn-math{font-family:ui-serif,Georgia,"Times New Roman",serif;font-size:14px;line-height:1.7;',
     'background:rgba(120,100,70,.07);border-radius:6px;padding:6px 9px;white-space:pre-wrap;word-break:break-word;}',
     '.sn-rel{display:flex;flex-wrap:wrap;gap:5px;}',
     '.sn-chip{display:inline-flex;align-items:center;gap:4px;font:inherit;font-size:12px;line-height:1;padding:4px 8px;',
-    'border-radius:999px;cursor:pointer;border:1px solid rgba(120,100,70,.26);background:#fffdf6;color:#4a4034;',
+    'border-radius:999px;cursor:pointer;border:1px solid var(--sn-line);background:var(--sn-surface);color:var(--sn-ink-2);',
     'max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
-    '.sn-chip[data-t="prereq"]{border-color:rgba(178,120,32,.45);color:#8a5a10;background:rgba(214,163,74,.12);}',
-    '.sn-chip[data-t="related"]{border-color:rgba(32,138,120,.4);color:#10695b;background:rgba(52,168,148,.12);}',
-    '.sn-chip[data-t="contrast"]{border-color:rgba(180,60,96,.4);color:#8c2145;background:rgba(200,70,110,.10);}',
-    '.sn-chip[data-on="1"]{font-weight:700;box-shadow:0 0 0 2px rgba(120,88,52,.28);}',
-    '.sn-chip-danger{border-color:rgba(180,60,96,.45);color:#8c2145;}',
+    '.sn-chip[data-t="prereq"]{border-color:var(--sn-amber);color:var(--sn-amber);background:rgba(214,163,74,.12);}',
+    '.sn-chip[data-t="related"]{border-color:var(--sn-teal);color:var(--sn-teal);background:rgba(52,168,148,.12);}',
+    '.sn-chip[data-t="contrast"]{border-color:var(--sn-rose);color:var(--sn-rose);background:rgba(200,70,110,.10);}',
+    '.sn-chip[data-on="1"]{font-weight:700;box-shadow:0 0 0 2px var(--sn-accent-soft);}',
+    '.sn-chip-danger{border-color:var(--sn-rose);color:var(--sn-rose);}',
     '.sn-edgehit{pointer-events:stroke;cursor:pointer;}',
     '.sn-edgebar{position:absolute;left:50%;top:44px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:8px;',
-    'max-width:calc(100% - 36px);padding:6px 10px;border-radius:999px;border:1px solid rgba(120,100,70,.3);',
-    'background:rgba(255,253,246,.96);box-shadow:0 8px 24px rgba(60,44,26,.16);font-size:12px;}',
-    '.sn-edgebar-title{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#4a4034;}',
+    'max-width:calc(100% - 36px);padding:6px 10px;border-radius:999px;border:1px solid var(--sn-line);',
+    'background:var(--sn-surface);box-shadow:var(--sn-shadow-panel);font-size:12px;}',
+    '.sn-edgebar-title{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sn-ink-2);}',
     '.sn-edgebar-kinds{display:flex;gap:6px;}',
     '.sn-mut{font-size:11.5px;color:var(--dsw-alias-label-tertiary,#a2957f);}',
     '.sn-note{width:100%;box-sizing:border-box;min-height:76px;resize:vertical;font:inherit;font-size:13px;line-height:1.6;',
-    'padding:8px 9px;border-radius:8px;border:1px dashed rgba(120,100,70,.34);background:rgba(255,253,246,.75);color:inherit;}',
-    '.sn-note:focus{outline:none;border-color:rgba(120,88,52,.6);background:#fffdf6;}',
+    'padding:8px 9px;border-radius:8px;border:1px dashed var(--sn-line);background:var(--sn-surface);color:inherit;}',
+    '.sn-note:focus{outline:none;border-color:var(--sn-line-strong);background:var(--sn-surface);}',
+    '.sn-field-edit{margin-top:2px;}',
+    '.sn-field-input{width:100%;box-sizing:border-box;resize:none;overflow:hidden;font:inherit;font-size:13px;line-height:1.62;',
+    'padding:6px 8px;border-radius:7px;border:1px solid var(--sn-line-strong);background:var(--sn-surface);color:inherit;}',
+    '.sn-field-input:focus{outline:none;border-color:var(--sn-line-strong);box-shadow:0 0 0 2px var(--sn-accent-soft);}',
+    '.sn-field-input-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;}',
+    '.sn-field-preview{margin-top:6px;padding:5px 7px;border-radius:6px;background:rgba(120,88,52,.07);font-size:13px;line-height:1.5;}',
+    '.sn-field-emptytext{color:rgba(90,72,48,.42);}',
     '.sn-mastery{display:flex;gap:6px;}',
     '.sn-mbtn{flex:1;font:inherit;font-size:12px;padding:6px 0;border-radius:7px;cursor:pointer;',
     'border:1px solid rgba(120,100,70,.24);background:transparent;color:var(--dsw-alias-label-secondary,#7a6a56);}',
@@ -337,7 +379,7 @@ function createMindMap(React) {
     'border:1px solid rgba(120,100,70,.3);background:var(--dsw-alias-bg-layer-2,#fbf7ec);box-shadow:0 12px 40px rgba(60,45,28,.28);}',
     '.sn-search input{display:block;width:100%;border:0;outline:0;background:transparent;color:inherit;',
     'font:inherit;font-size:15px;padding:13px 15px;}',
-    '.sn-search-list{max-height:44vh;overflow:auto;border-top:1px solid rgba(120,100,70,.18);}',
+    '.sn-search-list{max-height:44vh;overflow:auto;border-top:1px solid var(--sn-line-2);}',
     '.sn-search-row{display:flex;flex-direction:column;gap:1px;padding:8px 15px;cursor:pointer;}',
     '.sn-search-row[data-on="1"]{background:rgba(154,107,63,.14);}',
     '.sn-search-t{font-size:13.5px;line-height:1.35;}',
@@ -387,6 +429,9 @@ function createMindMap(React) {
     'body[data-ds-dark-theme] .sn-edgebar,.sn-root[data-theme="dark"] .sn-edgebar{background:rgba(38,34,29,.97);border-color:rgba(210,190,160,.28);}',
     'body[data-ds-dark-theme] .sn-edgebar-title,.sn-root[data-theme="dark"] .sn-edgebar-title{color:#e8e1d4;}',
     'body[data-ds-dark-theme] .sn-note,.sn-root[data-theme="dark"] .sn-note{background:rgba(42,38,33,.8);border-color:rgba(210,190,160,.3);}',
+    'body[data-ds-dark-theme] .sn-field-input,.sn-root[data-theme="dark"] .sn-field-input{background:#241f1a;border-color:rgba(210,190,160,.34);color:#e8e1d4;}',
+    'body[data-ds-dark-theme] .sn-field-preview,.sn-root[data-theme="dark"] .sn-field-preview{background:rgba(210,190,160,.08);}',
+    'body[data-ds-dark-theme] .sn-field-emptytext,.sn-root[data-theme="dark"] .sn-field-emptytext{color:rgba(232,225,212,.44);}',
     'body[data-ds-dark-theme] .sn-mini,.sn-root[data-theme="dark"] .sn-mini{background:rgba(32,29,25,.9);border-color:rgba(200,180,150,.22);}',
     'body[data-ds-dark-theme] .sn-hint,.sn-root[data-theme="dark"] .sn-hint{background:rgba(32,29,25,.8);}',
     'body[data-ds-dark-theme] .sn-live,.sn-root[data-theme="dark"] .sn-live{background:rgba(32,29,25,.95);border-color:rgba(200,180,150,.24);}',
@@ -403,13 +448,16 @@ function createMindMap(React) {
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-topbar{background:rgba(251,247,236,.92);border-color:rgba(120,100,70,.18);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-canvas{background-image:radial-gradient(circle at 1px 1px, rgba(120,100,70,.16) 1px, transparent 0);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card{background:#fffdf6;color:#2f2a24;border-color:rgba(86,68,45,.24);box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 2px 6px rgba(70,55,35,.10);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card[data-focus="1"]{background:#fffaf0;border-color:rgba(120,88,52,.5);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card[data-focus="1"]{background:var(--sn-surface-focus);border-color:var(--sn-line-strong);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card[data-dot="1"]{background:#bfad90;border-color:rgba(86,68,45,.28);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-sidebar{background:#fbf7ec;border-color:rgba(120,100,70,.18);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-chip{background:#fffdf6;color:#5c4d3c;border-color:rgba(86,68,45,.28);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-edgebar{background:rgba(251,247,236,.97);border-color:rgba(86,68,45,.3);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-edgebar-title{color:#4a4034;}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-note{background:rgba(255,255,255,.62);border-color:rgba(86,68,45,.26);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-field-input{background:#fffdf6;border-color:rgba(86,68,45,.42);color:#3a2f22;}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-field-preview{background:rgba(120,88,52,.07);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-field-emptytext{color:rgba(90,72,48,.42);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-mini{background:rgba(251,247,236,.9);border-color:rgba(86,68,45,.22);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-hint{background:rgba(251,247,236,.8);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-live{background:rgba(251,247,236,.95);border-color:rgba(120,100,70,.24);}',
@@ -425,16 +473,83 @@ function createMindMap(React) {
   /* ---------------------------------------------------------------- */
 
   function Field(props) {
-    if (!props.text) return null
-    var html = props.render ? props.render(props.text, !!props.mono) : null
+    var editing = !!props.editing
+    var taRef = useRef(null)
+    /* 编辑框跟着内容长高，长文不用在小框里滚 */
+    useEffect(function () {
+      if (!editing) return
+      var ta = taRef.current
+      if (!ta) return
+      ta.style.height = 'auto'
+      ta.style.height = Math.max(66, ta.scrollHeight) + 'px'
+    }, [editing, props.draft])
+
+    if (!props.text && !editing && !props.editable) return null
+    var html = !editing && props.render && props.text ? props.render(props.text, !!props.mono) : null
     var cls = props.mono ? 'sn-math' : 'sn-text'
+    var body
+    if (editing) {
+      var preview = null
+      if (props.mono && props.render) {
+        var ph = props.render(props.draft, true)
+        preview = h(
+          'div',
+          { className: 'sn-field-preview' },
+          h('span', { className: 'sn-muted' }, '预览 '),
+          ph
+            ? h('span', { className: 'sn-math', dangerouslySetInnerHTML: { __html: ph } })
+            : h('span', { className: 'sn-muted' }, '（还没写）'),
+        )
+      }
+      body = h(
+        'div',
+        { className: 'sn-field-edit' },
+        h('textarea', {
+          ref: taRef,
+          className: 'sn-field-input' + (props.mono ? ' sn-field-input-mono' : ''),
+          value: props.draft,
+          placeholder: '点这里写…',
+          spellCheck: false,
+          autoFocus: true,
+          onChange: function (event) {
+            props.onDraft(event.target.value)
+          },
+          onKeyDown: function (event) {
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              event.stopPropagation()
+              props.onCancel()
+            } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault()
+              event.stopPropagation()
+              props.onCommit()
+            }
+          },
+          onBlur: function () {
+            props.onCommit()
+          },
+        }),
+        preview,
+      )
+    } else if (html) {
+      body = h('div', { className: cls, dangerouslySetInnerHTML: { __html: html } })
+    } else {
+      body = h('div', { className: cls + (props.text ? '' : ' sn-field-emptytext') }, props.text || '点这里写…')
+    }
     return h(
       'div',
-      { className: 'sn-field' },
+      {
+        className: 'sn-field',
+        onDoubleClick: props.editable && !editing
+          ? function (event) {
+              event.stopPropagation()
+              props.onStart()
+            }
+          : undefined,
+        title: props.editable && !editing ? '双击编辑' : undefined,
+      },
       h('div', { className: 'sn-label' }, props.label),
-      html
-        ? h('div', { className: cls, dangerouslySetInnerHTML: { __html: html } })
-        : h('div', { className: cls }, props.text),
+      body,
     )
   }
 
@@ -509,6 +624,11 @@ function createMindMap(React) {
     var delState = useState(null)
     var pendingDelete = delState[0]
     var setPendingDelete = delState[1]
+
+    /* 概念卡正文的哪一栏正在编辑（{key, draft}；key 是 d/f/i/e/p） */
+    var fieldEditState = useState(null)
+    var fieldEdit = fieldEditState[0]
+    var setFieldEdit = fieldEditState[1]
 
     /* Shift 拖拽连边：linking 只用来切提示文案，橡皮筋线走命令式更新 */
     var linkState = useState(null)
@@ -683,6 +803,9 @@ function createMindMap(React) {
       var next = id || ''
       if (next === focusIdRef.current) {
         if (!layout) return
+        var centerId = pendingCenterRef.current
+        pendingCenterRef.current = null
+        pendingFitRef.current = null
         var t = fitFor(layout, next || layout.root.id, el.clientWidth || 1, el.clientHeight || 1)
         camRef.current = {
           x: (el.clientWidth || 1) / 2 - t.cx * t.k,
@@ -690,6 +813,8 @@ function createMindMap(React) {
           k: t.k,
         }
         applyCamera()
+        /* 已经是当前焦点了，但调用方还想把某个概念摆正中（搜索跳回同一层）：直接做，别留 pending */
+        if (centerId) centerOn(centerId, animate !== false)
         return
       }
       pendingFitRef.current = { animate: animate !== false, wide: wide === true }
@@ -1221,6 +1346,28 @@ function createMindMap(React) {
       props.onChange(next)
     }, [data, editable, props, pushHistory])
 
+    /* ---------------- 编辑：概念卡正文五栏 ---------------- */
+
+    var FIELD_KEYS = { d: 'definition', f: 'formal', i: 'intuition', e: 'examples', p: 'pitfalls' }
+
+    var startField = useCallback(function (key, value) {
+      if (!editable || !selectedId) return
+      setFieldEdit({ key: key, draft: value || '' })
+    }, [editable, selectedId])
+
+    var commitField = useCallback(function () {
+      if (!fieldEdit || !selectedId) return
+      var field = FIELD_KEYS[fieldEdit.key]
+      var node = nodesById.get(selectedId)
+      var cur = node ? node[field] || '' : ''
+      if (field && fieldEdit.draft !== cur) {
+        var patch = {}
+        patch[field] = fieldEdit.draft
+        updateNode(selectedId, patch, 'body:' + field + ':' + selectedId)
+      }
+      setFieldEdit(null)
+    }, [fieldEdit, nodesById, selectedId, updateNode])
+
     /* ---------------- 编辑：加节点 / 改名 / 删节点 ---------------- */
 
     /* 撤销栈：只留下「提交之前」的样子；label 用来合并连续同类操作（比如一直敲笔记） */
@@ -1229,8 +1376,8 @@ function createMindMap(React) {
       var stack = historyRef.current
       var snap = { nodes: data.nodes, edges: data.edges || [], label: label || 'edit' }
       var merge = stack.length && label && label.indexOf(':') > 0 && stack[stack.length - 1].label === label
-      if (merge) stack[stack.length - 1] = snap
-      else {
+      /* 合并时保留**最早**那份「改之前」的快照：连敲笔记 / 连改同一栏，⌘Z 应该一次退回改动前 */
+      if (!merge) {
         stack.push(snap)
         if (stack.length > 80) stack.shift()
       }
@@ -1306,12 +1453,16 @@ function createMindMap(React) {
     var collectDescendants = useCallback(function (id) {
       var out = []
       var stack = [id]
+      var seen = {}
+      seen[id] = true
       while (stack.length) {
         var cur = stack.pop()
         for (var i = 0; i < data.nodes.length; i++) {
-          if (data.nodes[i].parent === cur) {
-            out.push(data.nodes[i].id)
-            stack.push(data.nodes[i].id)
+          var child = data.nodes[i]
+          if (child.parent === cur && !seen[child.id]) {
+            seen[child.id] = true
+            out.push(child.id)
+            stack.push(child.id)
           }
         }
       }
@@ -1322,6 +1473,9 @@ function createMindMap(React) {
     var doDelete = useCallback(function (id, cascade) {
       var victim = nodesById.get(id)
       if (!victim || !layout) return
+      /* 根没有父级可上提：只能连子树一起删，否则子节点会挂到一个不存在的 id 上 */
+      var isRoot = !victim.parent || victim.id === layout.root.id
+      if (isRoot) cascade = true
       var gone = cascade ? [id].concat(collectDescendants(id)) : [id]
       var goneSet = {}
       for (var i = 0; i < gone.length; i++) goneSet[gone[i]] = true
@@ -1850,21 +2004,45 @@ function createMindMap(React) {
             )
       blocks.push(h('div', { key: 'h', className: 'sn-side-head' }, titleNode))
       if (selected.en) blocks.push(h('div', { key: 'en', className: 'sn-side-en' }, selected.en))
-      blocks.push(h(Field, { key: 'd', label: '定义', text: selected.definition, render: renderMath }))
-      blocks.push(h(Field, { key: 'f', label: '形式化', text: selected.formal, mono: true, render: renderMath }))
-      blocks.push(h(Field, { key: 'i', label: '直觉', text: selected.intuition, render: renderMath }))
-      blocks.push(h(Field, { key: 'e', label: '例子', text: selected.examples, render: renderMath }))
-      blocks.push(h(Field, { key: 'p', label: '易错点', text: selected.pitfalls, render: renderMath }))
+      var fieldProps = function (key, label, value, mono) {
+        return {
+          key: key,
+          label: label,
+          text: value,
+          mono: mono,
+          render: renderMath,
+          editable: editable,
+          editing: !!fieldEdit && fieldEdit.key === key,
+          draft: fieldEdit ? fieldEdit.draft : '',
+          onStart: function () {
+            startField(key, value)
+          },
+          onDraft: function (v) {
+            setFieldEdit({ key: key, draft: v })
+          },
+          onCommit: commitField,
+          onCancel: function () {
+            setFieldEdit(null)
+          },
+        }
+      }
+      blocks.push(h(Field, fieldProps('d', '定义', selected.definition)))
+      blocks.push(h(Field, fieldProps('f', '形式化', selected.formal, true)))
+      blocks.push(h(Field, fieldProps('i', '直觉', selected.intuition)))
+      blocks.push(h(Field, fieldProps('e', '例子', selected.examples)))
+      blocks.push(h(Field, fieldProps('p', '易错点', selected.pitfalls)))
       if (!selected.definition && !selected.formal && !selected.intuition && !selected.examples && !selected.pitfalls) {
-        blocks.push(
-          h(
-            'div',
-            { key: 'empty', className: 'sn-emptyfield' },
-            selected.children && selected.children.length
-              ? '这一层是分支，没有正文。往下点一个子概念看细节。'
-              : '这个概念还没有正文。按 F2 改名，或按 Tab 在它下面加子概念。',
-          ),
-        )
+        if (selected.children && selected.children.length) {
+          blocks.push(
+            h(
+              'div',
+              { key: 'empty', className: 'sn-emptyfield' },
+              editable
+                ? '这一层是分支，正文可以留空（双击上面任意一栏也能写）。往下点一个子概念看细节。'
+                : '这一层是分支，没有正文。往下点一个子概念看细节。',
+            ),
+          )
+        }
       }
       if (selected.source && (selected.source.snippet || selected.source.page)) {
         blocks.push(
@@ -2284,55 +2462,67 @@ function createMindMap(React) {
           )
         : null,
       pendingDelete
-        ? h(
-            'div',
-            { className: 'sn-searchwrap' },
-            h(
+        ? (function () {
+            var victim = nodesById.get(pendingDelete.id) || {}
+            var isRootNode = !victim.parent || (layout && victim.id === layout.root.id)
+            return h(
               'div',
-              { className: 'sn-dialog' },
-              h('h4', null, '删除「' + ((nodesById.get(pendingDelete.id) || {}).title || '这个概念') + '」'),
-              h('p', null, '它下面还有 ' + pendingDelete.count + ' 个子概念。一起删掉，还是只删它、把子概念上提到它的父级？'),
+              { className: 'sn-searchwrap' },
               h(
                 'div',
-                { className: 'sn-dlg-acts' },
+                { className: 'sn-dialog' },
+                h('h4', null, '删除「' + (victim.title || '这个概念') + '」'),
                 h(
-                  'button',
-                  {
-                    className: 'sn-dbtn',
-                    onClick: function () {
-                      setPendingDelete(null)
-                    },
-                  },
-                  '取消',
+                  'p',
+                  null,
+                  isRootNode
+                    ? '它是这张图的根，删掉就是连整棵树一起删。'
+                    : '它下面还有 ' + pendingDelete.count + ' 个子概念。一起删掉，还是只删它、把子概念上提到它的父级？',
                 ),
                 h(
-                  'button',
-                  {
-                    className: 'sn-dbtn',
-                    onClick: function () {
-                      var id = pendingDelete.id
-                      setPendingDelete(null)
-                      doDelete(id, false)
+                  'div',
+                  { className: 'sn-dlg-acts' },
+                  h(
+                    'button',
+                    {
+                      className: 'sn-dbtn',
+                      onClick: function () {
+                        setPendingDelete(null)
+                      },
                     },
-                  },
-                  '只删它，子概念上提',
-                ),
-                h(
-                  'button',
-                  {
-                    className: 'sn-dbtn',
-                    'data-danger': '1',
-                    onClick: function () {
-                      var id = pendingDelete.id
-                      setPendingDelete(null)
-                      doDelete(id, true)
+                    '取消',
+                  ),
+                  isRootNode
+                    ? null
+                    : h(
+                        'button',
+                        {
+                          className: 'sn-dbtn',
+                          onClick: function () {
+                            var id = pendingDelete.id
+                            setPendingDelete(null)
+                            doDelete(id, false)
+                          },
+                        },
+                        '只删它，子概念上提',
+                      ),
+                  h(
+                    'button',
+                    {
+                      className: 'sn-dbtn',
+                      'data-danger': '1',
+                      onClick: function () {
+                        var id = pendingDelete.id
+                        setPendingDelete(null)
+                        doDelete(id, true)
+                      },
                     },
-                  },
-                  '一起删掉',
+                    '一起删掉',
+                  ),
                 ),
               ),
-            ),
-          )
+            )
+          })()
         : null,
     )
   }

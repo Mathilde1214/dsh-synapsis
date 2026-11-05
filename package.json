@@ -1,6 +1,6 @@
 {
   "name": "dsh-synapsis",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Synapsis 析域 —— 把讲义铺成一张能走进去的概念图（DSH Web UI 面板插件）",
   "keywords": [
     "dsh",
@@ -36,7 +36,7 @@
     "assets/katex/fonts"
   ],
   "engines": {
-    "dsh": ">=0.2.2-rc.1 <0.3.0"
+    "dsh": ">=0.2.0 <0.3.0"
   },
   "dsh": {
     "bundle": {

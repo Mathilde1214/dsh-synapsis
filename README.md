@@ -51,15 +51,24 @@ dsh plugin --profile desktop add github:Mathilde1214/dsh-synapsis
 **2. 从 tarball 装（离线 / 内网）**
 
 ```sh
-pnpm pack            # 在仓库根目录执行，得到 dsh-synapsis-0.11.0.tgz
-dsh plugin --profile desktop add ./dsh-synapsis-0.11.0.tgz
+pnpm pack            # 在仓库根目录执行，得到 dsh-synapsis-<版本>.tgz
+dsh plugin --profile desktop add ./dsh-synapsis-<版本>.tgz
 ```
 
-**3. 在 DSH 里用面板装本地目录**
+**3. 从本地目录装（开发时用）**
+
+```sh
+dsh plugin --profile desktop add /绝对路径/到/这个仓库
+```
+
+<details>
+<summary>在 DSH 面板里装本地目录（同一件事的另一种入口）</summary>
 
 ```
 plugin_manager: install_bundle, target = <这个目录的绝对路径>
 ```
+
+</details>
 
 **卸载**
 
@@ -67,8 +76,8 @@ plugin_manager: install_bundle, target = <这个目录的绝对路径>
 dsh plugin --profile desktop remove dsh-synapsis
 ```
 
-**兼容性**：`engines.dsh` 是 `>=0.2.2-rc.1 <0.3.0`。DSH 在安装和启动 profile 时都会校验它，
-不满足会直接拒绝并说明原因。要在更老或更新的 DSH 上跑，改这一段再装即可——
+**兼容性**：`engines.dsh` 是 `>=0.2.0 <0.3.0`。DSH 在安装和启动 profile 时都会校验它，
+不满足会直接拒绝并说明原因。要在更新的 DSH 上跑，改这一段再装即可——
 面板只用到 `slots` 与 `webServer` 两个稳定扩展点。
 
 **从插件索引装**：仓库里带了 `plugin-market/index.json`（DSH 的**自定义插件索引**格式），

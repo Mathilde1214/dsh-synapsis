@@ -1,6 +1,9 @@
 {
   "format": 1,
-  "title": { "en": "Synapsis", "zh": "析域" },
+  "title": {
+    "en": "Synapsis",
+    "zh": "析域"
+  },
   "description": {
     "en": "Concept maps you can walk into — a DSH Web UI panel plugin.",
     "zh": "能把讲义铺成一张走进去的概念图 —— DSH Web UI 面板插件。"
@@ -8,7 +11,10 @@
   "plugins": [
     {
       "name": "dsh-synapsis",
-      "title": { "en": "Synapsis · 析域", "zh": "析域 · Synapsis" },
+      "title": {
+        "en": "Synapsis · 析域",
+        "zh": "析域 · Synapsis"
+      },
       "description": {
         "en": "A concept map panel: zoom into a branch and it becomes the new root; each concept carries definition, formal statement (LaTeX), intuition, examples, pitfalls, prerequisites, and the source page of the lecture notes.",
         "zh": "概念地图面板：滚轮推进子分支，它就成为新的主图根；每个概念带定义、形式化（LaTeX）、直觉、例子、易错点、前置与讲义原文出处。"
@@ -16,17 +22,21 @@
       "icon": "icons/synapsis.svg",
       "author": "Mathilde1214",
       "homepage": "https://github.com/Mathilde1214/dsh-synapsis#readme",
-      "repository": { "url": "https://github.com/Mathilde1214/dsh-synapsis" },
+      "repository": {
+        "url": "https://github.com/Mathilde1214/dsh-synapsis"
+      },
       "versions": [
         {
-          "version": "0.12.0",
-          "publishTimestamp": 1794016000,
+          "version": "0.13.0",
+          "publishTimestamp": 1793897911,
           "source": {
             "type": "git",
             "url": "https://github.com/Mathilde1214/dsh-synapsis",
             "commit": "07466103b9f74cbe22f81c35155dc4c35a7d9a61"
           },
-          "engines": { "dsh": ">=0.2.2-rc.1 <0.3.0" }
+          "engines": {
+            "dsh": ">=0.2.0 <0.3.0"
+          }
         }
       ]
     }
