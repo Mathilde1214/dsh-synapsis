@@ -709,7 +709,7 @@ function createMindMap(React) {
     night: {
       paper: '#1c1a17', paper2: '#211e1a', surface: '#241f1a', focus: '#2a241d',
       ink: '#efe7d8', ink2: '#d6c9b4', ink3: '#a1917b',
-      line: 'rgba(210,190,160,.22)', line2: 'rgba(210,190,160,.14)', dot: '#6b5f4e',
+      line: 'rgba(210,190,160,.22)', line2: 'rgba(210,190,160,.14)', dot: 'rgba(214,210,202,.075)',
     },
   }
 
