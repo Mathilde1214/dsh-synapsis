@@ -431,9 +431,11 @@ function createMindMap(React) {
     '.sn-review{position:absolute;inset:0;z-index:12;display:flex;align-items:center;justify-content:center;',
     'padding:24px;background:rgba(30,24,18,.42);}',
     '.sn-rvcard{width:100%;max-width:620px;max-height:100%;overflow:auto;border-radius:14px;padding:20px 22px 16px;',
+    'color:var(--sn-ink,#2f2a24);',
     'background:var(--sn-surface,#fffaf0);border:1px solid var(--sn-line,rgba(120,100,70,.24));',
     'box-shadow:var(--sn-shadow-panel,0 18px 48px rgba(60,45,28,.3));}',
-    '.sn-rvhead{display:flex;align-items:baseline;gap:10px;font-size:12px;color:var(--sn-ink-3,#8c8071);}',
+    '.sn-rvhead{display:flex;align-items:baseline;gap:10px;font-size:12px;color:var(--sn-ink-3,#8c8071);',
+    'cursor:move;user-select:none;touch-action:none;}',
     '.sn-rvtitle{margin:8px 0 4px;font-size:22px;font-weight:700;letter-spacing:.02em;}',
     '.sn-rven{font-size:12.5px;font-style:italic;opacity:.6;margin-bottom:10px;}',
     '.sn-rvbody{border-top:1px solid var(--sn-line-2,rgba(120,100,70,.16));padding-top:10px;',
@@ -518,8 +520,7 @@ function createMindMap(React) {
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-topbar{background:rgba(251,247,236,.92);border-color:rgba(120,100,70,.18);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-canvas{background-image:radial-gradient(circle at 1px 1px, rgba(120,100,70,.16) 1px, transparent 0);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card{background:#fffdf6;color:#2f2a24;border-color:rgba(86,68,45,.24);box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 2px 6px rgba(70,55,35,.10);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card[data-focus="1"]{background:var(--sn-surface-focus);border-color:var(--sn-line-strong);}',
-    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card[data-dot="1"]{background:#bfad90;border-color:rgba(86,68,45,.28);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card[data-focus="1"]{background:var(--sn-surface-focus);border-color:var(--sn-line-strong);}',    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card[data-dot="1"]{background:#bfad90;border-color:rgba(86,68,45,.28);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-sidebar{background:#fbf7ec;border-color:rgba(120,100,70,.18);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-chip{background:#fffdf6;color:#5c4d3c;border-color:rgba(86,68,45,.28);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-edgebar{background:rgba(251,247,236,.97);border-color:rgba(86,68,45,.3);}',
@@ -536,6 +537,28 @@ function createMindMap(React) {
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-search-row[data-on="1"]{background:rgba(214,163,74,.18);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-dialog{background:#fffdf7;border-color:rgba(86,68,45,.3);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-title-input{background:rgba(0,0,0,.04);border-color:rgba(154,107,63,.55);}',
+    /* 顶栏这排在「日光纸」下必须用纸上的墨色：宿主的 label token 是给深色底用的，套在米黄底上根本看不清 */
+    '.sn-root[data-theme="light"] .sn-topbar{color:#2f2a24;}',
+    '.sn-root[data-theme="light"] .sn-topbar .sn-crumb{color:#6b5f4e;}',
+    '.sn-root[data-theme="light"] .sn-topbar .sn-crumb[data-on="1"]{color:#241f1a;}',
+    '.sn-root[data-theme="light"] .sn-topbar .sn-status{color:#7d7060;}',
+    '.sn-root[data-theme="light"] .sn-topbar .sn-iconbtn{color:#5c4d3c;}',
+    '.sn-root[data-theme="light"] .sn-topbar .sn-searchbtn{color:#3f352a;border-color:rgba(120,100,70,.34);}',
+    '.sn-root[data-theme="light"] .sn-topbar .sn-libsel{color:#2f2a24;background:#fffdf6;border-color:rgba(120,100,70,.34);}',
+    /* 复习卡是纸，不跟宿主的 token 走：深色宿主里 --sn-ink 是浅色的，落在米黄卡上就看不见字了 */
+    '.sn-root[data-theme="light"] .sn-rvcard{background:#fffaf0;color:#2f2a24;border-color:rgba(86,68,45,.24);}',
+    '.sn-root[data-theme="light"] .sn-rvhead{color:#8c8071;}',
+    '.sn-root[data-theme="light"] .sn-hint{color:#8c8071;}',
+    '.sn-root[data-theme="light"] .sn-legend{color:#6b5f4e;}',
+    '.sn-root[data-theme="light"] .sn-label{color:#8c8071;}',
+    '.sn-root[data-theme="dark"] .sn-hint{color:#a1917b;}',
+    '.sn-root[data-theme="dark"] .sn-legend{color:#c3b59e;}',
+    '.sn-root[data-theme="dark"] .sn-rvcard{background:#241f1a;color:#efe7d8;border-color:rgba(210,190,160,.24);}',
+    '.sn-root[data-theme="dark"] .sn-rvhead{color:#a1917b;}',
+    '.sn-root[data-theme="dark"] .sn-topbar .sn-crumb{color:#c3b59e;}',
+    '.sn-root[data-theme="dark"] .sn-topbar .sn-crumb[data-on="1"]{color:#f3ece0;}',
+    '.sn-root[data-theme="dark"] .sn-topbar .sn-searchbtn{color:#ded3c1;border-color:rgba(210,190,160,.28);}',
+    '.sn-root[data-theme="dark"] .sn-topbar .sn-libsel{color:#efe7d8;background:#241f1a;border-color:rgba(210,190,160,.28);}',
   ].join('')
 
   /* ---------------------------------------------------------------- */
@@ -742,6 +765,12 @@ function createMindMap(React) {
     var review = reviewState[0]
     var setReview = reviewState[1]
 
+    /* 复习卡可以被拖走，别挡住底下的图 */
+    var rvPosState = useState({ x: 0, y: 0 })
+    var rvPos = rvPosState[0]
+    var setRvPos = rvPosState[1]
+    var rvDragRef = useRef(null)
+
     var canvasRef = useRef(null)
     var sceneRef = useRef(null)
     var miniRectRef = useRef(null)
@@ -909,6 +938,7 @@ function createMindMap(React) {
           i: 0,
           shown: false,
         })
+        setRvPos({ x: 0, y: 0 })
       },
       [data],
     )
@@ -926,6 +956,33 @@ function createMindMap(React) {
     var closeReview = useCallback(function () {
       setReview(null)
     }, [])
+
+    /* 拖复习卡：按住顶部那行挪，松手停在原地（位置只在这次会话里） */
+    useEffect(
+      function () {
+        var move = function (event) {
+          var start = rvDragRef.current
+          if (!start) return
+          setRvPos({ x: start.ox + event.clientX - start.x, y: start.oy + event.clientY - start.y })
+        }
+        var up = function () {
+          rvDragRef.current = null
+        }
+        window.addEventListener('pointermove', move)
+        window.addEventListener('pointerup', up)
+        return function () {
+          window.removeEventListener('pointermove', move)
+          window.removeEventListener('pointerup', up)
+        }
+      },
+      [],
+    )
+
+    var startReviewDrag = function (event) {
+      if (event.target && event.target.closest && event.target.closest('[data-rvclose]')) return
+      rvDragRef.current = { x: event.clientX, y: event.clientY, ox: rvPos.x, oy: rvPos.y }
+      if (event.cancelable) event.preventDefault()
+    }
 
     /* 键盘回调里用到的动作都经这个 ref 取：effect 只绑一次，永远拿到最新实现 */
     var actionsRef = useRef(null)
@@ -3017,14 +3074,21 @@ function createMindMap(React) {
                 },
                 h(
                   'div',
-                  { className: 'sn-rvcard' },
+                  {
+                    className: 'sn-rvcard',
+                    style: { transform: 'translate(' + rvPos.x + 'px,' + rvPos.y + 'px)' },
+                  },
                   h(
                     'div',
-                    { className: 'sn-rvhead' },
+                    { className: 'sn-rvhead', onPointerDown: startReviewDrag },
                     h('span', null, done ? '复习完成' : '复习 ' + (review.i + 1) + ' / ' + total),
                     h(
                       'span',
-                      { style: { marginLeft: 'auto', cursor: 'pointer', opacity: 0.7 }, onClick: closeReview },
+                      {
+                        'data-rvclose': '1',
+                        style: { marginLeft: 'auto', cursor: 'pointer', opacity: 0.7 },
+                        onClick: closeReview,
+                      },
                       'Esc 退出',
                     ),
                   ),
