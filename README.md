@@ -45,8 +45,8 @@ dsh plugin --profile desktop add github:Mathilde1214/synapsis
 **2. 从 tarball 装（离线 / 内网）**
 
 ```sh
-pnpm pack            # 在仓库根目录执行，得到 synapsis-0.8.0.tgz
-dsh plugin --profile desktop add ./synapsis-0.8.0.tgz
+pnpm pack            # 在仓库根目录执行，得到 dsh-synapsis-0.9.0.tgz
+dsh plugin --profile desktop add ./dsh-synapsis-0.9.0.tgz
 ```
 
 **3. 在 DSH 里用面板装本地目录**
@@ -58,7 +58,7 @@ plugin_manager: install_bundle, target = <这个目录的绝对路径>
 **卸载**
 
 ```sh
-dsh plugin --profile desktop remove synapsis
+dsh plugin --profile desktop remove dsh-synapsis
 ```
 
 **兼容性**：`engines.dsh` 是 `>=0.2.2-rc.1 <0.3.0`。DSH 在安装和启动 profile 时都会校验它，

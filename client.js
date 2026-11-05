@@ -1,6 +1,6 @@
 /* Synapsis · 析域 —— DSH 插件客户端（由 tools/build-plugin.mjs 生成，勿手改） */
 window.__ModuleLoader__.load({
-  id: 'synapsis',
+  id: 'dsh-synapsis',
   factory(require) {
     const React = require('react')
     const h = React.createElement
@@ -2337,7 +2337,7 @@ function Panel() {
     }
 
     return {
-      name: 'synapsis',
+      name: 'dsh-synapsis',
       inject: ['slots'],
       apply(ctx) {
         /* 公式资源：插件自带 KaTeX，从自己的路由加载，卸载时一起摘掉 */
@@ -2366,10 +2366,10 @@ function Panel() {
           }
         })
         ctx.slots.inject('sidebar.panellist', () =>
-          ctx.slots.register({ name: 'sidebar.panellist', id: 'synapsis', order: 30, label: '析域' }, PanelIcon),
+          ctx.slots.register({ name: 'sidebar.panellist', id: 'dsh-synapsis', order: 30, label: '析域' }, PanelIcon),
         )
         ctx.slots.inject('main', () =>
-          ctx.slots.register({ name: 'main', key: 'synapsis' }, PanelHost),
+          ctx.slots.register({ name: 'main', key: 'dsh-synapsis' }, PanelHost),
         )
       },
     }

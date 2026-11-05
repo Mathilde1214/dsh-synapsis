@@ -2,7 +2,7 @@ import path from 'node:path'
 import { promises as fs } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-export const name = 'synapsis'
+export const name = 'dsh-synapsis'
 export const inject = ['webServer']
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
