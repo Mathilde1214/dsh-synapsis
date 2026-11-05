@@ -1,0 +1,15 @@
+services:
+  synapsis:
+    build: .
+    image: synapsis:0.2.0
+    container_name: synapsis
+    ports:
+      # 只对这台机器开放：127.0.0.1:7788
+      - "127.0.0.1:7788:7788"
+    environment:
+      SYNAPSIS_DATA: /data
+      SYNAPSIS_HOST: 0.0.0.0
+    volumes:
+      # 图库目录：容器里 /data ↔ 本机下面的目录（与 DSH 插件共用一个库）
+      - "E:/dsh工作空间/析域:/data"
+    restart: unless-stopped

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>析域 · Synapsis</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='3' fill='%239a6b3f'/%3E%3Ccircle cx='12' cy='3.5' r='1.6' fill='%23604a2e'/%3E%3Ccircle cx='12' cy='20.5' r='1.6' fill='%23604a2e'/%3E%3Ccircle cx='3.5' cy='12' r='1.6' fill='%23604a2e'/%3E%3Ccircle cx='20.5' cy='12' r='1.6' fill='%23604a2e'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./vendor/katex/katex.min.css" />
+<link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="rail">
+        <div class="brand">
+          <div class="brand-cn">析域</div>
+          <div class="brand-en">Synapsis</div>
+        </div>
+        <button class="newbtn" id="newBtn">＋ 新讲义</button>
+        <div class="rail-label">我的图</div>
+        <div class="lib" id="libList"></div>
+        <div class="rail-foot">
+          <button class="linkbtn" id="themeBtn">切换夜间纸</button>
+          <button class="linkbtn" id="setBtn">设置</button>
+        </div>
+      </aside>
+
+      <main class="stage">
+        <section class="welcome" id="welcome">
+          <div class="welcome-inner">
+            <h1>把一本讲义，<br />铺成一张能走进去的图。</h1>
+            <p class="sub">拖入 PDF 电子书，或粘贴一段文字。概念会从中心一层层长出来，每个概念都带着出处、前置与引出。</p>
+
+            <div class="drop" id="drop">
+              <input type="file" id="fileInput" accept="application/pdf,.pdf,.txt,.md" hidden />
+              <div class="drop-ico">＋</div>
+              <div class="drop-main">把 PDF / txt / md 拖到这里，或 <button class="linkbtn" id="pickBtn">选择文件</button></div>
+              <div class="drop-hint">文字型 PDF 可直接抽取正文；扫描件请改用粘贴文本</div>
+            </div>
+
+            <div class="paste">
+              <textarea id="pasteBox" placeholder="也可以直接粘贴讲义正文……"></textarea>
+              <div class="paste-row">
+                <input id="titleInput" class="titleinput" placeholder="这份讲义叫什么（可留空）" />
+                <button class="primary" id="analyzeBtn">读取讲义</button>
+              </div>
+            </div>
+            <div class="err" id="welcomeErr" hidden></div>
+          </div>
+        </section>
+
+        <section class="prep" id="prep" hidden>
+          <header class="prep-head">
+            <div>
+              <h2 id="prepTitle">讲义</h2>
+              <p class="sub" id="prepMeta"></p>
+            </div>
+            <div class="prep-actions">
+              <button class="ghost" id="backBtn">返回</button>
+              <button class="primary" id="genBtn">开始生成概念图</button>
+            </div>
+          </header>
+          <div class="chapters" id="chapters"></div>
+        </section>
+
+        <section class="viewer" id="viewer" hidden>
+          <div class="maphost" id="mapHost"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal" id="modal" hidden>
+      <div class="modal-card">
+        <h3>模型设置</h3>
+        <p class="sub">请求都经本机代理转发，key 只存在这台机器上。</p>
+        <label class="field"><span>接口地址</span><input id="cfgBase" placeholder="https://api.deepseek.com/v1" /></label>
+        <label class="field"><span>模型</span><input id="cfgModel" placeholder="deepseek-chat" /></label>
+        <label class="field"><span>API Key</span><input id="cfgKey" type="password" placeholder="sk-…" /></label>
+        <div class="modal-actions">
+          <button class="ghost" id="cfgCancel">取消</button>
+          <button class="primary" id="cfgSave">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./vendor/katex/katex.min.js"></script>
+<script src="./vendor/react.production.min.js"></script>
+    <script src="./vendor/react-dom.production.min.js"></script>
+    <script src="/core/synapsis-core.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

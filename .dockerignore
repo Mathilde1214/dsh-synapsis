@@ -1,0 +1,6 @@
+node_modules
+shots
+server/*.log
+server/*.err
+server/probe.json
+.DS_Store

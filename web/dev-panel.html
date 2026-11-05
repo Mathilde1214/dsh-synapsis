@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>析域 · 插件面板联调</title>
+    <link rel="stylesheet" href="./style.css" />
+    <style>
+      html, body { margin: 0; height: 100%; }
+      #host { position: fixed; inset: 0; display: flex; }
+    </style>
+    <script src="./vendor/react.production.min.js"></script>
+    <script src="./vendor/react-dom.production.min.js"></script>
+  </head>
+  <body>
+    <div id="host"></div>
+    <!--
+      用真实插件产物（plugin/client.js）在浏览器里跑一遍面板：
+      1) 伪造 __ModuleLoader__，把 react 从 UMD 全局递给工厂；
+      2) 伪造 ctx（只实现 slots.inject / slots.register 与 effect）；
+      3) 把面板组件挂到 #host，fetch 走 shim 映射到本站 /api/*。
+    -->
+    <script>
+      const REAL_FETCH = window.fetch.bind(window)
+      window.fetch = (input, init) => {
+        let url = String(input)
+        if (url.startsWith('/synapsis-api/list')) url = '/api/library'
+        else if (url.startsWith('/synapsis-api/load?name=')) {
+          url = '/api/library/' + url.slice('/synapsis-api/load?name='.length)
+        } else if (url === '/synapsis-api/save') {
+          const body = JSON.parse((init && init.body) || '{}')
+          return REAL_FETCH('/api/library/' + encodeURIComponent(body.name), {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(body.data),
+          })
+        } else if (url === '/synapsis-api/delete') {
+          const body = JSON.parse((init && init.body) || '{}')
+          return REAL_FETCH('/api/library/' + encodeURIComponent(body.name), { method: 'DELETE' })
+        }
+        return REAL_FETCH(url, init)
+      }
+
+      window.__ModuleLoader__ = {
+        load(def) {
+          window.__synapsisMod = def.factory((name) => {
+            if (name === 'react') return window.React
+            throw new Error('unknown module: ' + name)
+          })
+        },
+      }
+
+      window.__panels = {}
+      window.__effects = []
+      const ctx = {
+        effect(fn) {
+          const dispose = fn()
+          window.__effects.push(dispose)
+          return dispose
+        },
+        slots: {
+          inject(slot, fn) { fn() },
+          register(config, component) {
+            window.__panels[config.key || config.id || 'x'] = component
+            return () => {}
+          },
+        },
+      }
+    </script>
+    <script src="/synapsis-api/_client.js"></script>
+    <script>
+      window.__panels.hostPanel = window.__panels['dsh-synapsis'] || window.__panels.synapsis
+      const mod = window.__synapsisMod
+      mod.apply(ctx)
+      const Panel = window.__panels['dsh-synapsis'] || window.__panels.synapsis
+      ReactDOM.createRoot(document.getElementById('host')).render(React.createElement(Panel))
+    </script>
+  </body>
+</html>

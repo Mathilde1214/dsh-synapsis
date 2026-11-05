@@ -1,0 +1,12 @@
+{
+  "name": "synapsis",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "description": "Synapsis / 析域 —— 把讲义铺成一张能走进去的概念图",
+  "scripts": {
+    "start": "node server/serve.mjs",
+    "mock": "node tools/mock-llm.mjs",
+    "build:plugin": "node tools/build-plugin.mjs"
+  }
+}
