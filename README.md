@@ -33,13 +33,13 @@
 
 ## 安装
 
-这个目录本身就是一个 DSH **bundle 包**（`package.json` 里带 `dsh.bundle.patch`，`engines.dsh` 声明兼容的 DSH 版本），
+**仓库根目录就是插件包**：`package.json` 里带 `dsh.bundle.patch`，`engines.dsh` 声明兼容的 DSH 版本。
 三种标准装法任选其一。装完刷新宿主页面（或重启 DSH），侧栏会出现「析域」图标。
 
 **1. 从 GitHub 装（推荐，无需任何构建）**
 
 ```sh
-dsh plugin --profile desktop add github:Mathilde1214/synapsis
+dsh plugin --profile desktop add github:Mathilde1214/dsh-synapsis
 ```
 
 本包是纯 JavaScript，`client.js` 等产物随仓库一起提交，因此不需要 `prepare` 构建，
@@ -48,8 +48,8 @@ dsh plugin --profile desktop add github:Mathilde1214/synapsis
 **2. 从 tarball 装（离线 / 内网）**
 
 ```sh
-pnpm pack            # 在仓库根目录执行，得到 dsh-synapsis-0.10.0.tgz
-dsh plugin --profile desktop add ./dsh-synapsis-0.10.0.tgz
+pnpm pack            # 在仓库根目录执行，得到 dsh-synapsis-0.11.0.tgz
+dsh plugin --profile desktop add ./dsh-synapsis-0.11.0.tgz
 ```
 
 **3. 在 DSH 里用面板装本地目录**
@@ -72,7 +72,7 @@ dsh plugin --profile desktop remove dsh-synapsis
 在 DSH 的「插件 → 发现 → 添加索引源」里填这个文件的 https URL，就能像应用商店一样浏览和安装：
 
 ```
-https://raw.githubusercontent.com/Mathilde1214/synapsis/main/plugin-market/index.json
+https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/plugin-market/index.json
 ```
 
 ## 数据放哪
@@ -106,17 +106,32 @@ https://raw.githubusercontent.com/Mathilde1214/synapsis/main/plugin-market/index
 
 ## 目录
 
+仓库根目录就是插件包，构建源与开发工具都在同一个仓库里：
+
 ```
+package.json        bundle 清单：dsh.bundle.patch / engines.dsh / dsh.client / files
 index.js            Host 半边：图库读写路由（/synapsis-api/list|load|save|delete）+ KaTeX 静态资源
 client-body.js      面板组件源码（图库切换、保存防抖、KaTeX 就绪等待）
 client.js           构建产物：内核 + client-body 拼成的客户端包，安装时用的就是它
+core/synapsis-core.js  渲染内核（布局、相机、LOD、连边、撤销），被 build 拼进 client.js
 assets/katex/       自带的 KaTeX js/css/字体
 locale/{zh,en}.json 插件元信息
 cordis.patch.yml    装进 DSH 的 patch 片段
+plugin-market/      插件索引（format 1），供 DSH 的「发现」页读取
+tools/build-plugin.mjs  构建：core + client-body → client.js
+tools/dev-server.mjs    开发用本地服务（图库 API + 联调页），不进 npm 包
+tools/dev-panel/        联调页：在浏览器里跑真实 client.js
+tools/ocr*.mjs|ps1、extract-images.mjs、merge-chapters.mjs  讲义 → 概念图的离线流水线
 ```
 
-`client.js` 是生成文件（渲染内核 `core/synapsis-core.js` + `client-body.js` 拼接而来），
-随仓库一起发布是为了让插件能独立安装；改面板逻辑请改 `client-body.js`，再重新构建。
+`client.js` 是生成文件，**不要手改**：改 `core/synapsis-core.js` 或 `client-body.js`，然后
+
+```sh
+npm run build     # = node tools/build-plugin.mjs
+npm run dev       # = node tools/dev-server.mjs，然后开 http://127.0.0.1:7788/
+```
+
+`files` 只列运行时需要的文件，所以 `core/`、`tools/` 不会进 npm 包——装到别人机器上的只有产物。
 
 ## 已知边界
 

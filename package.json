@@ -1,6 +1,6 @@
 {
   "name": "dsh-synapsis",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "description": "Synapsis 析域 —— 把讲义铺成一张能走进去的概念图（DSH Web UI 面板插件）",
   "keywords": [
     "dsh",
@@ -48,6 +48,11 @@
       "inject": []
     }
   },
+  "scripts": {
+    "build": "node tools/build-plugin.mjs",
+    "dev": "node tools/dev-server.mjs",
+    "pack:check": "npm pack --dry-run"
+  },
   "license": "MIT",
   "author": {
     "name": "Mathilde1214",
@@ -55,10 +60,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Mathilde1214/synapsis.git"
+    "url": "git+https://github.com/Mathilde1214/dsh-synapsis.git"
   },
   "bugs": {
-    "url": "https://github.com/Mathilde1214/synapsis/issues"
+    "url": "https://github.com/Mathilde1214/dsh-synapsis/issues"
   },
-  "homepage": "https://github.com/Mathilde1214/synapsis#readme"
+  "homepage": "https://github.com/Mathilde1214/dsh-synapsis#readme"
 }

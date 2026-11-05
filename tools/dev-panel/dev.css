@@ -1,0 +1,29 @@
+/* 联调页专用的最小样式：真实面板的样式由 client.js 自己注入 */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #f4efe3;
+  color: #2f2a24;
+  font-family: 'Segoe UI', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+#host {
+  position: fixed;
+  inset: 0;
+  display: flex;
+}
+
+#devbar {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 99;
+  font-size: 11px;
+  color: #8a7d68;
+  background: rgba(255, 253, 246, 0.9);
+  border: 1px solid rgba(86, 68, 45, 0.18);
+  border-radius: 8px;
+  padding: 4px 8px;
+  pointer-events: none;
+}

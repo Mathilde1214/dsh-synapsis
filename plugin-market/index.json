@@ -15,16 +15,16 @@
       },
       "icon": "icons/synapsis.svg",
       "author": "Mathilde1214",
-      "homepage": "https://github.com/Mathilde1214/synapsis#readme",
-      "repository": { "url": "https://github.com/Mathilde1214/synapsis" },
+      "homepage": "https://github.com/Mathilde1214/dsh-synapsis#readme",
+      "repository": { "url": "https://github.com/Mathilde1214/dsh-synapsis" },
       "versions": [
         {
-          "version": "0.10.1",
-          "publishTimestamp": 1794009000,
+          "version": "0.11.0",
+          "publishTimestamp": 1794015000,
           "source": {
             "type": "git",
-            "url": "https://github.com/Mathilde1214/synapsis",
-            "commit": "4c9061038aa2116c030803770cc1ea229fbd3743"
+            "url": "https://github.com/Mathilde1214/dsh-synapsis",
+            "commit": "0000000000000000000000000000000000000000"
           },
           "engines": { "dsh": ">=0.2.2-rc.1 <0.3.0" }
         }

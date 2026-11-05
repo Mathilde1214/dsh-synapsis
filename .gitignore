@@ -4,4 +4,9 @@ node_modules/
 *.bak
 .DS_Store
 Thumbs.db
+
+# 开发期产物（不属于插件）
 tmp/
+shots/
+*.mindmap.json
+!tools/dev-panel/**/*.json
