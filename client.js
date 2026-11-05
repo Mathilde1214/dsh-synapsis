@@ -305,6 +305,7 @@ function createMindMap(React) {
     '.sn-legend{position:absolute;left:12px;bottom:12px;z-index:4;display:flex;flex-direction:column;gap:3px;',
     'font-size:11px;color:var(--dsw-alias-label-tertiary,#a2957f);pointer-events:none;}',
     '.sn-legend i{display:inline-block;width:16px;height:0;margin-right:6px;vertical-align:middle;}',
+    '.sn-emptyfield{margin:.1em 0 .5em;padding:.5em .6em;border:1px dashed rgba(150,120,80,.35);border-radius:7px;color:rgba(90,72,48,.65);font-size:12.5px;line-height:1.5;}',
     '.sn-hint{position:absolute;left:12px;top:10px;z-index:4;font-size:11px;color:var(--dsw-alias-label-tertiary,#a2957f);',
     'background:rgba(255,253,246,.7);padding:3px 8px;border-radius:999px;pointer-events:none;}',
     '.sn-src{margin-top:8px;border-left:2px solid rgba(154,107,63,.45);padding-left:9px;font-size:12.5px;line-height:1.65;opacity:.82;}',
@@ -328,6 +329,19 @@ function createMindMap(React) {
     '.sn-search-t{font-size:13.5px;line-height:1.35;}',
     '.sn-search-p{font-size:11px;opacity:.58;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
     '.sn-search-empty{padding:13px 15px;font-size:12.5px;opacity:.55;}',
+    /* 编辑 */
+    '.sn-title-input{flex:1;min-width:0;font:inherit;font-size:21px;font-weight:700;line-height:1.25;padding:1px 6px;',
+    'border-radius:5px;border:1px solid rgba(154,107,63,.5);background:rgba(255,255,255,.35);color:inherit;outline:none;}',
+    '.sn-dialog{width:100%;max-width:420px;border-radius:12px;padding:18px 20px 16px;',
+    'border:1px solid rgba(120,100,70,.3);background:var(--dsw-alias-bg-layer-2,#fbf7ec);box-shadow:0 12px 40px rgba(60,45,28,.28);}',
+    '.sn-dialog h4{margin:0 0 6px;font-size:15px;font-weight:700;}',
+    '.sn-dialog p{margin:0 0 14px;font-size:12.5px;line-height:1.7;opacity:.72;}',
+    '.sn-dlg-acts{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;}',
+    '.sn-dbtn{font:inherit;font-size:12.5px;padding:6px 11px;border-radius:7px;cursor:pointer;',
+    'border:1px solid rgba(120,100,70,.3);background:transparent;color:inherit;}',
+    '.sn-dbtn:hover{background:rgba(120,100,70,.12);}',
+    '.sn-dbtn[data-danger="1"]{border-color:rgba(186,64,104,.55);color:#b03a5b;}',
+    '.sn-dbtn[data-danger="1"]:hover{background:rgba(186,64,104,.14);}',
     /* dark */
     'body[data-ds-dark-theme] .sn-root,.sn-root[data-theme="dark"]{background:#1c1a17;color:#e8e1d4;}',
     'body[data-ds-dark-theme] .sn-topbar,.sn-root[data-theme="dark"] .sn-topbar{background:rgba(28,26,23,.92);border-color:rgba(200,180,150,.16);}',
@@ -344,6 +358,8 @@ function createMindMap(React) {
     'body[data-ds-dark-theme] .sn-search,.sn-root[data-theme="dark"] .sn-search{background:#252119;border-color:rgba(200,180,150,.24);}',
     'body[data-ds-dark-theme] .sn-search-list,.sn-root[data-theme="dark"] .sn-search-list{border-color:rgba(200,180,150,.18);}',
     'body[data-ds-dark-theme] .sn-search-row[data-on="1"],.sn-root[data-theme="dark"] .sn-search-row[data-on="1"]{background:rgba(201,155,98,.2);}',
+    'body[data-ds-dark-theme] .sn-dialog,.sn-root[data-theme="dark"] .sn-dialog{background:#252119;border-color:rgba(200,180,150,.24);}',
+    'body[data-ds-dark-theme] .sn-title-input,.sn-root[data-theme="dark"] .sn-title-input{background:rgba(255,255,255,.06);border-color:rgba(201,155,98,.55);}',
   ].join('')
 
   /* ---------------------------------------------------------------- */
@@ -428,6 +444,13 @@ function createMindMap(React) {
     var searchCursor = searchCursorState[0]
     var setSearchCursor = searchCursorState[1]
     var searchInputRef = useRef(null)
+
+    var editState = useState(null)
+    var editing = editState[0]
+    var setEditing = editState[1]
+    var delState = useState(null)
+    var pendingDelete = delState[0]
+    var setPendingDelete = delState[1]
 
     var canvasRef = useRef(null)
     var sceneRef = useRef(null)
@@ -796,14 +819,46 @@ function createMindMap(React) {
             setSearchOpen(false)
             return
           }
+          if (editing) {
+            setEditing(null)
+            return
+          }
+          if (pendingDelete) {
+            setPendingDelete(null)
+            return
+          }
           if (selectedId) setSelectedId('')
+          return
+        }
+        var tag = event.target && event.target.tagName ? String(event.target.tagName).toUpperCase() : ''
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return
+        if (!selectedId || !editable) return
+        if (event.key === 'Tab') {
+          event.preventDefault()
+          addChild(selectedId)
+        } else if (event.key === 'Enter') {
+          event.preventDefault()
+          addSibling(selectedId)
+        } else if (event.key === 'F2') {
+          event.preventDefault()
+          var cur = nodesById.get(selectedId)
+          if (cur) setEditing({ id: cur.id, draft: cur.title || '' })
+        } else if (event.key === 'Delete' || event.key === 'Backspace') {
+          var kids = childCount(selectedId)
+          if (kids > 0) {
+            event.preventDefault()
+            setPendingDelete({ id: selectedId, count: kids })
+          } else {
+            event.preventDefault()
+            doDelete(selectedId, true)
+          }
         }
       }
       window.addEventListener('keydown', onKey)
       return function () {
         window.removeEventListener('keydown', onKey)
       }
-    }, [selectedId, searchOpen])
+    }, [addChild, addSibling, childCount, doDelete, editable, editing, nodesById, pendingDelete, searchOpen, selectedId])
 
     /* 搜索框打开就聚焦；结果变了把光标收回第一行 */
     useEffect(function () {
@@ -872,8 +927,111 @@ function createMindMap(React) {
       props.onChange(next)
     }, [data, editable, props])
 
-    var focusLevel = focusNode ? focusNode.depth : 0
+    /* ---------------- 编辑：加节点 / 改名 / 删节点 ---------------- */
 
+    var commitData = useCallback(function (nextNodes, nextEdges) {
+      if (!editable || !data) return
+      props.onChange({
+        version: data.version,
+        id: data.id,
+        title: data.title,
+        subtitle: data.subtitle,
+        updated: new Date().toISOString(),
+        nodes: nextNodes,
+        edges: nextEdges || data.edges || [],
+      })
+    }, [data, editable, props])
+
+    var childCount = useCallback(function (id) {
+      var n = 0
+      for (var i = 0; i < (data ? data.nodes.length : 0); i++) if (data.nodes[i].parent === id) n++
+      return n
+    }, [data])
+
+    var commitRename = useCallback(function (id, title) {
+      var t = String(title == null ? '' : title).trim()
+      if (!t) return
+      updateNode(id, { title: t })
+    }, [updateNode])
+
+    var addChild = useCallback(function (parentId) {
+      if (!editable || !data || !layout) return
+      var parent = nodesById.get(parentId) || layout.root
+      var id = 'n' + Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36)
+      var node = {
+        id: id,
+        title: '新概念',
+        parent: parent.id,
+        summary: '',
+        definition: '',
+        formal: '',
+        intuition: '',
+        examples: '',
+        pitfalls: '',
+        mastery: 0,
+        note: '',
+      }
+      var nodes = data.nodes.slice()
+      var last = -1
+      for (var i = 0; i < nodes.length; i++) if (nodes[i].parent === parent.id) last = i
+      if (last >= 0) nodes.splice(last + 1, 0, node)
+      else nodes.push(node)
+      commitData(nodes)
+      setSelectedId(id)
+      setEditing({ id: id, draft: node.title })
+    }, [commitData, data, editable, layout, nodesById])
+
+    var addSibling = useCallback(function (id) {
+      var node = nodesById.get(id)
+      if (!node) return
+      addChild(node.parent || (layout ? layout.root.id : ''))
+    }, [addChild, layout, nodesById])
+
+    var collectDescendants = useCallback(function (id) {
+      var out = []
+      var stack = [id]
+      while (stack.length) {
+        var cur = stack.pop()
+        for (var i = 0; i < data.nodes.length; i++) {
+          if (data.nodes[i].parent === cur) {
+            out.push(data.nodes[i].id)
+            stack.push(data.nodes[i].id)
+          }
+        }
+      }
+      return out
+    }, [data])
+
+    /* cascade=true：连同子树一起删；false：只删这个点，子概念上提到它的父级 */
+    var doDelete = useCallback(function (id, cascade) {
+      var victim = nodesById.get(id)
+      if (!victim || !layout) return
+      var gone = cascade ? [id].concat(collectDescendants(id)) : [id]
+      var goneSet = {}
+      for (var i = 0; i < gone.length; i++) goneSet[gone[i]] = true
+      var liftTo = victim.parent || layout.root.id
+      var nodes = []
+      for (var j = 0; j < data.nodes.length; j++) {
+        var n = data.nodes[j]
+        if (goneSet[n.id]) continue
+        if (!cascade && n.parent === id) {
+          var copy = {}
+          for (var k in n) copy[k] = n[k]
+          copy.parent = liftTo
+          nodes.push(copy)
+        } else {
+          nodes.push(n)
+        }
+      }
+      var edges = (data.edges || []).filter(function (e) {
+        return !goneSet[e.from] && !goneSet[e.to]
+      })
+      if (focusIdRef.current && goneSet[focusIdRef.current]) setFocusId(liftTo)
+      if (selectedId && goneSet[selectedId]) setSelectedId('')
+      commitData(nodes, edges)
+    }, [collectDescendants, commitData, data, layout, nodesById, selectedId])
+
+    var focusLevel = focusNode ? focusNode.depth : 0
     var cards = []
     var edges = []
     if (layout && data) {
@@ -1042,13 +1200,60 @@ function createMindMap(React) {
     var sideContent
     if (selected) {
       var blocks = []
-      blocks.push(h('div', { key: 'h', className: 'sn-side-head' }, h('div', { className: 'sn-side-title' }, selected.title)))
+      var titleNode =
+        editable && editing && editing.id === selected.id
+          ? h('input', {
+              className: 'sn-title-input',
+              value: editing.draft,
+              autoFocus: true,
+              spellCheck: false,
+              onChange: function (event) {
+                setEditing({ id: selected.id, draft: event.target.value })
+              },
+              onBlur: function () {
+                commitRename(selected.id, editing.draft)
+                setEditing(null)
+              },
+              onKeyDown: function (event) {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  commitRename(selected.id, editing.draft)
+                  setEditing(null)
+                } else if (event.key === 'Escape') {
+                  event.preventDefault()
+                  setEditing(null)
+                }
+              },
+            })
+          : h(
+              'div',
+              {
+                className: 'sn-side-title',
+                title: editable ? '双击改名（或按 F2）' : selected.title,
+                onDoubleClick: function () {
+                  if (editable) setEditing({ id: selected.id, draft: selected.title || '' })
+                },
+              },
+              selected.title,
+            )
+      blocks.push(h('div', { key: 'h', className: 'sn-side-head' }, titleNode))
       if (selected.en) blocks.push(h('div', { key: 'en', className: 'sn-side-en' }, selected.en))
       blocks.push(h(Field, { key: 'd', label: '定义', text: selected.definition, render: renderMath }))
       blocks.push(h(Field, { key: 'f', label: '形式化', text: selected.formal, mono: true, render: renderMath }))
       blocks.push(h(Field, { key: 'i', label: '直觉', text: selected.intuition, render: renderMath }))
       blocks.push(h(Field, { key: 'e', label: '例子', text: selected.examples, render: renderMath }))
       blocks.push(h(Field, { key: 'p', label: '易错点', text: selected.pitfalls, render: renderMath }))
+      if (!selected.definition && !selected.formal && !selected.intuition && !selected.examples && !selected.pitfalls) {
+        blocks.push(
+          h(
+            'div',
+            { key: 'empty', className: 'sn-emptyfield' },
+            selected.children && selected.children.length
+              ? '这一层是分支，没有正文。往下点一个子概念看细节。'
+              : '这个概念还没有正文。按 F2 改名，或按 Tab 在它下面加子概念。',
+          ),
+        )
+      }
       if (selected.source && (selected.source.snippet || selected.source.page)) {
         blocks.push(
           h(
@@ -1119,6 +1324,28 @@ function createMindMap(React) {
             { className: 'sn-chip', onClick: function () { focusOn(selected.id, true) } },
             '以它为主根展开',
           ),
+          editable
+            ? h(
+                'button',
+                { className: 'sn-chip', onClick: function () { addChild(selected.id) }, title: '在它下面加一个子概念（Tab）' },
+                '+ 子概念',
+              )
+            : null,
+          editable
+            ? h(
+                'button',
+                {
+                  className: 'sn-chip',
+                  onClick: function () {
+                    var kids = childCount(selected.id)
+                    if (kids > 0) setPendingDelete({ id: selected.id, count: kids })
+                    else doDelete(selected.id, true)
+                  },
+                  title: '删除这个概念（Del）',
+                },
+                '删除',
+              )
+            : null,
         ),
       )
       sideContent = h(React.Fragment, null, blocks)
@@ -1205,7 +1432,7 @@ function createMindMap(React) {
               setSelectedId('')
             },
           },
-          h('div', { className: 'sn-hint' }, '滚轮缩放 · 拖拽平移 · 双击进入子层'),
+          h('div', { className: 'sn-hint' }, editable ? '滚轮缩放 · 拖拽平移 · 双击进入 · Tab 新建 · F2 改名 · Del 删除' : '滚轮缩放 · 拖拽平移 · 双击进入子层'),
           props.liveText ? h('div', { className: 'sn-live' }, props.liveText) : null,
           h(
             'div',
@@ -1318,6 +1545,57 @@ function createMindMap(React) {
                     { className: 'sn-search-empty' },
                     String(searchQuery || '').trim() ? '没有匹配的概念' : '输入概念名、定义里的词，或一个公式',
                   ),
+            ),
+          )
+        : null,
+      pendingDelete
+        ? h(
+            'div',
+            { className: 'sn-searchwrap' },
+            h(
+              'div',
+              { className: 'sn-dialog' },
+              h('h4', null, '删除「' + ((nodesById.get(pendingDelete.id) || {}).title || '这个概念') + '」'),
+              h('p', null, '它下面还有 ' + pendingDelete.count + ' 个子概念。一起删掉，还是只删它、把子概念上提到它的父级？'),
+              h(
+                'div',
+                { className: 'sn-dlg-acts' },
+                h(
+                  'button',
+                  {
+                    className: 'sn-dbtn',
+                    onClick: function () {
+                      setPendingDelete(null)
+                    },
+                  },
+                  '取消',
+                ),
+                h(
+                  'button',
+                  {
+                    className: 'sn-dbtn',
+                    onClick: function () {
+                      var id = pendingDelete.id
+                      setPendingDelete(null)
+                      doDelete(id, false)
+                    },
+                  },
+                  '只删它，子概念上提',
+                ),
+                h(
+                  'button',
+                  {
+                    className: 'sn-dbtn',
+                    'data-danger': '1',
+                    onClick: function () {
+                      var id = pendingDelete.id
+                      setPendingDelete(null)
+                      doDelete(id, true)
+                    },
+                  },
+                  '一起删掉',
+                ),
+              ),
             ),
           )
         : null,
