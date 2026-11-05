@@ -28,11 +28,11 @@
       "versions": [
         {
           "version": "0.14.0",
-          "publishTimestamp": 1793897965,
+          "publishTimestamp": 1793898268,
           "source": {
             "type": "git",
             "url": "https://github.com/Mathilde1214/dsh-synapsis",
-            "commit": "5dd1af87047c57e08ac0fc147367a3d56175ca47"
+            "commit": "319e98e0d0bcee38a12f935002afc4a38287f161"
           },
           "engines": {
             "dsh": ">=0.2.0 <0.3.0"
