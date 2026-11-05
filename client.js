@@ -3618,7 +3618,7 @@ function createMindMap(React) {
                 '用析域把这份讲义做成概念图：先列章节清单给我确认，再逐章生成，最后写进库目录。',
               ),
               h('p', { className: 'sn-implabel' }, '③ 回来刷新（切走再切回面板，或按 ↻）'),
-              h('div', { className: 'sn-setrow' }, h('span', { className: 'sn-setlabel' }, '库目录')),
+              h('p', { className: 'sn-implabel' }, '库目录'),
               h('pre', { className: 'sn-impcode sn-impdir' }, props.dir),
               h(
                 'div',
