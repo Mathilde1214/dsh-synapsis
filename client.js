@@ -289,6 +289,14 @@ function createMindMap(React) {
     '.sn-chip[data-t="prereq"]{border-color:rgba(178,120,32,.45);color:#8a5a10;background:rgba(214,163,74,.12);}',
     '.sn-chip[data-t="related"]{border-color:rgba(32,138,120,.4);color:#10695b;background:rgba(52,168,148,.12);}',
     '.sn-chip[data-t="contrast"]{border-color:rgba(180,60,96,.4);color:#8c2145;background:rgba(200,70,110,.10);}',
+    '.sn-chip[data-on="1"]{font-weight:700;box-shadow:0 0 0 2px rgba(120,88,52,.28);}',
+    '.sn-chip-danger{border-color:rgba(180,60,96,.45);color:#8c2145;}',
+    '.sn-edgehit{pointer-events:stroke;cursor:pointer;}',
+    '.sn-edgebar{position:absolute;left:50%;top:44px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:8px;',
+    'max-width:calc(100% - 36px);padding:6px 10px;border-radius:999px;border:1px solid rgba(120,100,70,.3);',
+    'background:rgba(255,253,246,.96);box-shadow:0 8px 24px rgba(60,44,26,.16);font-size:12px;}',
+    '.sn-edgebar-title{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#4a4034;}',
+    '.sn-edgebar-kinds{display:flex;gap:6px;}',
     '.sn-mut{font-size:11.5px;color:var(--dsw-alias-label-tertiary,#a2957f);}',
     '.sn-note{width:100%;box-sizing:border-box;min-height:76px;resize:vertical;font:inherit;font-size:13px;line-height:1.6;',
     'padding:8px 9px;border-radius:8px;border:1px dashed rgba(120,100,70,.34);background:rgba(255,253,246,.75);color:inherit;}',
@@ -383,6 +391,8 @@ function createMindMap(React) {
     'body[data-ds-dark-theme] .sn-card[data-dot="1"],.sn-root[data-theme="dark"] .sn-card[data-dot="1"]{background:#6d6152;}',
     'body[data-ds-dark-theme] .sn-sidebar,.sn-root[data-theme="dark"] .sn-sidebar{background:#201d19;border-color:rgba(200,180,150,.16);}',
     'body[data-ds-dark-theme] .sn-chip,.sn-root[data-theme="dark"] .sn-chip{background:#2a2621;color:#ddd3c2;border-color:rgba(210,190,160,.24);}',
+    'body[data-ds-dark-theme] .sn-edgebar,.sn-root[data-theme="dark"] .sn-edgebar{background:rgba(38,34,29,.97);border-color:rgba(210,190,160,.28);}',
+    'body[data-ds-dark-theme] .sn-edgebar-title,.sn-root[data-theme="dark"] .sn-edgebar-title{color:#e8e1d4;}',
     'body[data-ds-dark-theme] .sn-note,.sn-root[data-theme="dark"] .sn-note{background:rgba(42,38,33,.8);border-color:rgba(210,190,160,.3);}',
     'body[data-ds-dark-theme] .sn-mini,.sn-root[data-theme="dark"] .sn-mini{background:rgba(32,29,25,.9);border-color:rgba(200,180,150,.22);}',
     'body[data-ds-dark-theme] .sn-hint,.sn-root[data-theme="dark"] .sn-hint{background:rgba(32,29,25,.8);}',
@@ -404,6 +414,8 @@ function createMindMap(React) {
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-card[data-dot="1"]{background:#bfad90;border-color:rgba(86,68,45,.28);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-sidebar{background:#fbf7ec;border-color:rgba(120,100,70,.18);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-chip{background:#fffdf6;color:#5c4d3c;border-color:rgba(86,68,45,.28);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-edgebar{background:rgba(251,247,236,.97);border-color:rgba(86,68,45,.3);}',
+    'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-edgebar-title{color:#4a4034;}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-note{background:rgba(255,255,255,.62);border-color:rgba(86,68,45,.26);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-mini{background:rgba(251,247,236,.9);border-color:rgba(86,68,45,.22);}',
     'body[data-ds-dark-theme] .sn-root[data-theme="light"] .sn-hint{background:rgba(251,247,236,.8);}',
@@ -514,6 +526,11 @@ function createMindMap(React) {
     var linkOverlayRef = useRef(null)
     var historyRef = useRef([])
     var lastLabelRef = useRef('')
+
+    /* 选中的关系边（只有跨分支的关系边可选可编辑；从属线由树表达，不参与） */
+    var edgeSelState = useState(null)
+    var edgeSel = edgeSelState[0]
+    var setEdgeSel = edgeSelState[1]
 
     var canvasRef = useRef(null)
     var sceneRef = useRef(null)
@@ -691,6 +708,7 @@ function createMindMap(React) {
       function (id) {
         setSearchOpen(false)
         setSearchQuery('')
+        setEdgeSel(null)
         if (!id) return
         setSelectedId(id)
         var target = layout ? layout.byId.get(id) : null
@@ -942,11 +960,21 @@ function createMindMap(React) {
             setPendingDelete(null)
             return
           }
+          if (edgeSel) {
+            setEdgeSel(null)
+            return
+          }
           if (selectedId) setSelectedId('')
           return
         }
         var tag = event.target && event.target.tagName ? String(event.target.tagName).toUpperCase() : ''
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return
+        /* 选中一条关系边时，删除键删的是这条线，不是节点 */
+        if (edgeSel && (event.key === 'Delete' || event.key === 'Backspace')) {
+          event.preventDefault()
+          removeEdge()
+          return
+        }
         if (!selectedId || !editable) return
         if (event.key === 'Tab') {
           event.preventDefault()
@@ -973,7 +1001,7 @@ function createMindMap(React) {
       return function () {
         window.removeEventListener('keydown', onKey)
       }
-    }, [addChild, addSibling, childCount, doDelete, editable, editing, nodesById, pendingDelete, searchOpen, selectedId, undo])
+    }, [addChild, addSibling, childCount, doDelete, editable, edgeSel, editing, nodesById, pendingDelete, removeEdge, searchOpen, selectedId, undo])
 
     /* 搜索框打开就聚焦；结果变了把光标收回第一行 */
     useEffect(function () {
@@ -1358,6 +1386,37 @@ function createMindMap(React) {
       commitData(data.nodes, list, 'edge')
     }, [commitData, data, editable, nodesById])
 
+    /* 选中一条已有的关系边 */
+    var pickEdge = useCallback(function (from, to, event) {
+      if (event) {
+        event.stopPropagation()
+        event.preventDefault()
+      }
+      if (!editable) return
+      setEdgeSel({ from: from, to: to })
+      setSelectedId('')
+    }, [editable])
+
+    /* 改类型（同一条边，只换 type） */
+    var setEdgeType = useCallback(function (type) {
+      if (!editable || !data || !edgeSel) return
+      var list = (data.edges || []).map(function (e) {
+        if (e.from === edgeSel.from && e.to === edgeSel.to) return { from: e.from, to: e.to, type: type }
+        return e
+      })
+      commitData(data.nodes, list, 'edge')
+    }, [commitData, data, editable, edgeSel])
+
+    /* 删掉选中的这条边 */
+    var removeEdge = useCallback(function () {
+      if (!editable || !data || !edgeSel) return
+      var list = (data.edges || []).filter(function (e) {
+        return !(e.from === edgeSel.from && e.to === edgeSel.to)
+      })
+      setEdgeSel(null)
+      commitData(data.nodes, list, 'edge')
+    }, [commitData, data, editable, edgeSel])
+
     /* 橡皮筋线：pointermove 里直接改属性，不进 React 状态，才不卡 */
     var drawLink = useCallback(function (clientX, clientY) {
       var el = canvasRef.current
@@ -1527,6 +1586,7 @@ function createMindMap(React) {
               onClick: function (id) {
                 return function (event) {
                   event.stopPropagation()
+                  setEdgeSel(null)
                   setSelectedId(id)
                   if (props.onSelect) props.onSelect(id)
                 }
@@ -1588,15 +1648,35 @@ function createMindMap(React) {
           var onPath = pathIds.has(edge.from) && pathIds.has(edge.to)
           if (pathState && !onPath) continue
           var color = edge.type === 'prereq' ? 'rgba(190,128,35,' : edge.type === 'contrast' ? 'rgba(186,64,104,' : 'rgba(32,150,130,'
+          var picked = !!edgeSel && edgeSel.from === edge.from && edgeSel.to === edge.to
+          /* 看不见的粗线当命中区：细虚线直接点很难点中 */
+          if (editable) {
+            edges.push(
+              h('path', {
+                key: 'rh-' + edge.from + '-' + edge.to,
+                className: 'sn-edgehit',
+                d: pathBetween(a, b),
+                fill: 'none',
+                stroke: 'transparent',
+                strokeWidth: 16,
+                onClick: function (from, to) {
+                  return function (event) {
+                    pickEdge(from, to, event)
+                  }
+                }(edge.from, edge.to),
+              }),
+            )
+          }
           edges.push(
             h('path', {
               key: 'r-' + edge.from + '-' + edge.to,
               d: pathBetween(a, b),
               fill: 'none',
-              stroke: color + (active ? '0.9)' : onPath ? '0.88)' : '0.28)'),
-              strokeWidth: active || onPath ? 2.4 : 1.4,
+              stroke: color + (picked ? '1)' : active ? '0.9)' : onPath ? '0.88)' : '0.28)'),
+              strokeWidth: picked ? 3.2 : active || onPath ? 2.4 : 1.4,
               strokeDasharray: edge.type === 'contrast' ? '7 4' : '5 4',
               strokeLinecap: 'round',
+              style: picked ? { filter: 'drop-shadow(0 0 3px ' + color + '0.85))' } : undefined,
             }),
           )
         }
@@ -2002,16 +2082,84 @@ function createMindMap(React) {
             ref: canvasRef,
             onClick: function () {
               setSelectedId('')
+              setEdgeSel(null)
             },
           },
+          edgeSel && editable
+            ? (function () {
+                var ea = nodesById.get(edgeSel.from)
+                var eb = nodesById.get(edgeSel.to)
+                if (!ea || !eb) return null
+                var kinds = [
+                  { t: 'prereq', label: '前置' },
+                  { t: 'related', label: '关联' },
+                  { t: 'contrast', label: '对比' },
+                ]
+                var now = 'related'
+                for (var q = 0; q < (data.edges || []).length; q++) {
+                  if (data.edges[q].from === edgeSel.from && data.edges[q].to === edgeSel.to) now = data.edges[q].type
+                }
+                return h(
+                  'div',
+                  {
+                    className: 'sn-edgebar',
+                    onClick: function (event) {
+                      event.stopPropagation()
+                    },
+                  },
+                  h('span', { className: 'sn-edgebar-title' }, (ea.title || '') + ' → ' + (eb.title || '')),
+                  h(
+                    'span',
+                    { className: 'sn-edgebar-kinds' },
+                    kinds.map(function (item) {
+                      return h(
+                        'button',
+                        {
+                          key: item.t,
+                          className: 'sn-chip',
+                          'data-t': item.t,
+                          'data-on': now === item.t ? '1' : '0',
+                          onClick: function () {
+                            setEdgeType(item.t)
+                          },
+                        },
+                        item.label,
+                      )
+                    }),
+                  ),
+                  h(
+                    'button',
+                    {
+                      className: 'sn-chip sn-chip-danger',
+                      onClick: function () {
+                        removeEdge()
+                      },
+                    },
+                    '删掉这条线',
+                  ),
+                  h(
+                    'button',
+                    {
+                      className: 'sn-chip',
+                      onClick: function () {
+                        setEdgeSel(null)
+                      },
+                    },
+                    '关闭',
+                  ),
+                )
+              })()
+            : null,
           h(
           'div',
           { className: 'sn-hint' },
           linking
             ? '拖到另一个概念上松开：连一条关系（同向再连一次换类型，第三次取消）'
-            : editable
-              ? '滚轮缩放 · 拖拽平移 · 双击进入 · Tab 新建 · F2 改名 · Del 删除 · Shift 拖拽连边 · ⌘Z 撤销'
-              : '滚轮缩放 · 拖拽平移 · 双击进入子层',
+            : edgeSel
+              ? '选中了一条关系线：上面可换类型或删掉 · Esc 取消'
+              : editable
+                ? '滚轮缩放 · 拖拽平移 · 双击进入 · Tab 新建 · F2 改名 · Del 删除 · Shift 拖拽连边 · 点线可编辑 · ⌘Z 撤销'
+                : '滚轮缩放 · 拖拽平移 · 双击进入子层',
         ),
           props.liveText ? h('div', { className: 'sn-live' }, props.liveText) : null,
           h(
