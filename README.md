@@ -89,7 +89,17 @@ https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/plugin-market/i
 
 ## 数据放哪
 
-默认读 `E:\dsh工作空间\析域`（Windows 路径），可用环境变量 `SYNAPSIS_DATA` 覆盖。
+按顺序取第一个可用的位置：
+
+| 优先级 | 位置 | 说明 |
+| --- | --- | --- |
+| 1 | 环境变量 `SYNAPSIS_DATA` | 填绝对路径，就完全按它来 |
+| 2 | `<用户主目录>/Synapsis` | 默认值。Windows 是 `C:\Users\<你>\Synapsis`，macOS 是 `/Users/<你>/Synapsis`，Linux 是 `/home/<你>/Synapsis` |
+| 3 | `E:\dsh工作空间\析域` | 只是为 0.13 之前的老用户留的：**这个目录存在时才用**，不存在就跳过 |
+
+面板空态里会把实际用的目录直接印出来（可以选中复制），所以不用猜。
+第一次使用时目录会被自动创建。
+
 目录里每一份图是一个 `*.mindmap.json`：
 
 ```json

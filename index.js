@@ -1,5 +1,6 @@
 import path from 'node:path'
-import { promises as fs } from 'node:fs'
+import os from 'node:os'
+import fsSync, { promises as fs } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 export const name = 'dsh-synapsis'
@@ -15,7 +16,22 @@ const MIME = {
   '.ttf': 'font/ttf',
 }
 
-const HOME = process.env.SYNAPSIS_DATA || 'E:\\dsh工作空间\\析域'
+/* 数据目录：按下面的顺序取第一个可用的
+   1. SYNAPSIS_DATA 环境变量（绝对路径）
+   2. 0.13 之前写死的旧默认目录（只在本机存在时才用，老用户不用搬数据）
+   3. <用户主目录>/Synapsis（跨平台，Mac 是 /Users/xxx/Synapsis，Linux 是 /home/xxx/Synapsis） */
+const LEGACY_HOME = 'E:\\dsh工作空间\\析域'
+
+function resolveHome() {
+  const fromEnv = String(process.env.SYNAPSIS_DATA || '').trim()
+  if (fromEnv) return path.resolve(fromEnv)
+  try {
+    if (fsSync.statSync(LEGACY_HOME).isDirectory()) return LEGACY_HOME
+  } catch {}
+  return path.join(os.homedir(), 'Synapsis')
+}
+
+const HOME = resolveHome()
 const NAME_RE = /^[^\u0000-\u001f\\/:*?"<>|]+\.mindmap\.json$/
 
 function safeName(raw) {

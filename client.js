@@ -2586,6 +2586,7 @@ function Panel() {
   const [status, setStatus] = React.useState('读取图库…')
   const [error, setError] = React.useState('')
   const [armDelete, setArmDelete] = React.useState(false)
+  const [dir, setDir] = React.useState('')
   const [darkHost, setDarkHost] = React.useState(hostDark)
   const [themeMode, setThemeMode] = React.useState(() => {
     try {
@@ -2637,6 +2638,7 @@ function Panel() {
       const list = await jget('/synapsis-api/list')
       const items = (list && list.items) || []
       setFiles(items)
+      setDir((list && list.dir) || '')
       const next = pick || nameRef.current || (items[0] && items[0].name) || ''
       if (next && items.some((item) => item.name === next)) {
         const loaded = await jget('/synapsis-api/load?name=' + encodeURIComponent(next))
@@ -2783,7 +2785,35 @@ function Panel() {
         },
       },
       hh('div', { style: { fontSize: 22, letterSpacing: '0.2em' } }, '析域'),
-      hh('div', null, status || '还没有图。用 Synapsis 网站把讲义生成出来，这里会自动出现。'),
+      hh('div', null, status || '这个目录里还没有图。'),
+      dir
+        ? hh(
+            'div',
+            { style: { maxWidth: 620, textAlign: 'center', opacity: 0.8, lineHeight: 1.7 } },
+            '库目录：',
+            hh(
+              'code',
+              {
+                style: {
+                  fontFamily: 'ui-monospace,SFMono-Regular,Menlo,Consolas,monospace',
+                  fontSize: 12,
+                  userSelect: 'all',
+                  overflowWrap: 'anywhere',
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                  background: 'rgba(120,100,70,.12)',
+                },
+              },
+              dir,
+            ),
+            hh('br'),
+            '把生成好的 ',
+            hh('code', null, '*.mindmap.json'),
+            ' 放进这个目录，再点「重新读取」即可；也可以设环境变量 ',
+            hh('code', null, 'SYNAPSIS_DATA'),
+            ' 换到别处。',
+          )
+        : null,
       hh(
         'button',
         { style: { font: 'inherit', fontSize: 12.5, padding: '5px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
