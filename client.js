@@ -248,6 +248,9 @@ function createMindMap(React) {
     '.sn-scene{position:absolute;left:0;top:0;transform-origin:0 0;}',
     '.sn-scene[data-moving="1"]{will-change:transform;}',
     '.sn-edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none;}',
+    '.sn-linklayer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;overflow:visible;}',
+    '.sn-root[data-linking="1"] .sn-card{transition:box-shadow .12s ease;}',
+    '.sn-root[data-linking="1"] .sn-card:hover{box-shadow:0 0 0 2px rgba(190,128,35,.75);}',
     '.sn-card{position:absolute;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:2px;overflow:hidden;',
     'background:#fffdf6;color:#2f2a24;border:1px solid rgba(86,68,45,.24);',
     'box-shadow:0 1px 0 rgba(255,255,255,.7) inset, 0 2px 6px rgba(70,55,35,.10);',
@@ -501,6 +504,16 @@ function createMindMap(React) {
     var delState = useState(null)
     var pendingDelete = delState[0]
     var setPendingDelete = delState[1]
+
+    /* Shift 拖拽连边：linking 只用来切提示文案，橡皮筋线走命令式更新 */
+    var linkState = useState(null)
+    var linking = linkState[0]
+    var setLinking = linkState[1]
+    var linkFromRef = useRef('')
+    var linkPathRef = useRef(null)
+    var linkOverlayRef = useRef(null)
+    var historyRef = useRef([])
+    var lastLabelRef = useRef('')
 
     var canvasRef = useRef(null)
     var sceneRef = useRef(null)
@@ -838,6 +851,8 @@ function createMindMap(React) {
       }
       var onDown = function (event) {
         if (event.button !== 0) return
+        /* Shift 是「连边」修饰键：不要同时把画布拖走 */
+        if (event.shiftKey) return
         pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
         if (pointers.size === 1) {
           dragging = true
@@ -909,6 +924,11 @@ function createMindMap(React) {
           setSearchOpen(true)
           return
         }
+        if ((event.metaKey || event.ctrlKey) && key === 'z') {
+          event.preventDefault()
+          undo()
+          return
+        }
         if (event.key === 'Escape') {
           if (searchOpen) {
             setSearchOpen(false)
@@ -953,7 +973,7 @@ function createMindMap(React) {
       return function () {
         window.removeEventListener('keydown', onKey)
       }
-    }, [addChild, addSibling, childCount, doDelete, editable, editing, nodesById, pendingDelete, searchOpen, selectedId])
+    }, [addChild, addSibling, childCount, doDelete, editable, editing, nodesById, pendingDelete, searchOpen, selectedId, undo])
 
     /* 搜索框打开就聚焦；结果变了把光标收回第一行 */
     useEffect(function () {
@@ -1159,8 +1179,9 @@ function createMindMap(React) {
       [pathState, layout, centerOn],
     )
 
-    var updateNode = useCallback(function (id, patch) {
+    var updateNode = useCallback(function (id, patch, label) {
       if (!editable || !data) return
+      pushHistory(label || 'edit')
       var next = {
         version: data.version,
         id: data.id,
@@ -1177,12 +1198,27 @@ function createMindMap(React) {
         edges: data.edges || [],
       }
       props.onChange(next)
-    }, [data, editable, props])
+    }, [data, editable, props, pushHistory])
 
     /* ---------------- 编辑：加节点 / 改名 / 删节点 ---------------- */
 
-    var commitData = useCallback(function (nextNodes, nextEdges) {
+    /* 撤销栈：只留下「提交之前」的样子；label 用来合并连续同类操作（比如一直敲笔记） */
+    var pushHistory = useCallback(function (label) {
       if (!editable || !data) return
+      var stack = historyRef.current
+      var snap = { nodes: data.nodes, edges: data.edges || [], label: label || 'edit' }
+      var merge = stack.length && label && label.indexOf(':') > 0 && stack[stack.length - 1].label === label
+      if (merge) stack[stack.length - 1] = snap
+      else {
+        stack.push(snap)
+        if (stack.length > 80) stack.shift()
+      }
+      lastLabelRef.current = snap.label
+    }, [data, editable])
+
+    var commitData = useCallback(function (nextNodes, nextEdges, label) {
+      if (!editable || !data) return
+      if (label !== 'undo') pushHistory(label || 'edit')
       props.onChange({
         version: data.version,
         id: data.id,
@@ -1192,7 +1228,14 @@ function createMindMap(React) {
         nodes: nextNodes,
         edges: nextEdges || data.edges || [],
       })
-    }, [data, editable, props])
+    }, [data, editable, props, pushHistory])
+
+    var undo = useCallback(function () {
+      var stack = historyRef.current
+      if (!stack.length) return
+      var snap = stack.pop()
+      commitData(snap.nodes, snap.edges, 'undo')
+    }, [commitData])
 
     var childCount = useCallback(function (id) {
       var n = 0
@@ -1203,7 +1246,7 @@ function createMindMap(React) {
     var commitRename = useCallback(function (id, title) {
       var t = String(title == null ? '' : title).trim()
       if (!t) return
-      updateNode(id, { title: t })
+      updateNode(id, { title: t }, 'title:' + id)
     }, [updateNode])
 
     var addChild = useCallback(function (parentId) {
@@ -1228,7 +1271,7 @@ function createMindMap(React) {
       for (var i = 0; i < nodes.length; i++) if (nodes[i].parent === parent.id) last = i
       if (last >= 0) nodes.splice(last + 1, 0, node)
       else nodes.push(node)
-      commitData(nodes)
+      commitData(nodes, null, 'add')
       setSelectedId(id)
       setEditing({ id: id, draft: node.title })
     }, [commitData, data, editable, layout, nodesById])
@@ -1280,8 +1323,93 @@ function createMindMap(React) {
       })
       if (focusIdRef.current && goneSet[focusIdRef.current]) setFocusId(liftTo)
       if (selectedId && goneSet[selectedId]) setSelectedId('')
-      commitData(nodes, edges)
+      commitData(nodes, edges, 'delete:' + id)
     }, [collectDescendants, commitData, data, layout, nodesById, selectedId])
+
+    /* ---------------- 编辑：连边 ---------------- */
+
+    /* 同一对概念只留一条关系：连第一次是「前置」，再连一次换「关联」→「对比」，第四次取消 */
+    var linkEdge = useCallback(function (fromId, toId) {
+      if (!editable || !data || !fromId || !toId || fromId === toId) return
+      var a = nodesById.get(fromId)
+      var b = nodesById.get(toId)
+      if (!a || !b) return
+      /* 从属关系已经由树表达了，不用再连一条 */
+      if (a.parent === toId || b.parent === fromId) return
+      var list = (data.edges || []).slice()
+      var order = ['prereq', 'related', 'contrast']
+      var at = -1
+      for (var i = 0; i < list.length; i++) {
+        if ((list[i].from === fromId && list[i].to === toId) || (list[i].from === toId && list[i].to === fromId)) {
+          at = i
+          break
+        }
+      }
+      if (at < 0) {
+        list.push({ from: fromId, to: toId, type: 'prereq' })
+      } else if (list[at].from !== fromId) {
+        /* 反过来连：方向改过来，类型回到前置 */
+        list[at] = { from: fromId, to: toId, type: 'prereq' }
+      } else {
+        var idx = order.indexOf(list[at].type)
+        if (idx < 0 || idx >= order.length - 1) list.splice(at, 1)
+        else list[at] = { from: fromId, to: toId, type: order[idx + 1] }
+      }
+      commitData(data.nodes, list, 'edge')
+    }, [commitData, data, editable, nodesById])
+
+    /* 橡皮筋线：pointermove 里直接改属性，不进 React 状态，才不卡 */
+    var drawLink = useCallback(function (clientX, clientY) {
+      var el = canvasRef.current
+      var path = linkPathRef.current
+      var from = layout && layout.byId.get(linkFromRef.current)
+      if (!el || !path || !from) return
+      var box = el.getBoundingClientRect()
+      var cam = camRef.current
+      var x1 = from.x * cam.k + cam.x
+      var y1 = from.y * cam.k + cam.y
+      var x2 = clientX - box.left
+      var y2 = clientY - box.top
+      path.setAttribute('d', 'M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + 'L' + x2.toFixed(1) + ' ' + y2.toFixed(1))
+    }, [layout])
+
+    var beginLink = useCallback(function (id, event) {
+      if (!editable) return false
+      linkFromRef.current = id
+      setLinking({ from: id })
+      var path = linkPathRef.current
+      if (path) path.setAttribute('d', '')
+      drawLink(event.clientX, event.clientY)
+      return true
+    }, [drawLink, editable])
+
+    useEffect(function () {
+      if (!linking) return
+      var onMove = function (event) {
+        drawLink(event.clientX, event.clientY)
+      }
+      var onUp = function (event) {
+        var fromId = linkFromRef.current
+        linkFromRef.current = ''
+        setLinking(null)
+        var node = document.elementFromPoint(event.clientX, event.clientY)
+        var card = node && node.closest ? node.closest('.sn-card') : null
+        var toId = card ? card.getAttribute('data-id') : ''
+        if (toId && toId !== fromId) linkEdge(fromId, toId)
+      }
+      var onCancel = function () {
+        linkFromRef.current = ''
+        setLinking(null)
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+      window.addEventListener('pointercancel', onCancel)
+      return function () {
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+        window.removeEventListener('pointercancel', onCancel)
+      }
+    }, [drawLink, linkEdge, linking])
 
     var focusLevel = focusNode ? focusNode.depth : 0
     var cards = []
@@ -1353,11 +1481,20 @@ function createMindMap(React) {
               key: node.id,
               className: 'sn-card',
               style: style,
+              'data-id': node.id,
               'data-sel': node.id === selectedId ? '1' : '0',
               'data-focus': node.id === focusId ? '1' : '0',
               'data-dim': pathState ? (inPath ? '0' : '1') : rel < 0 ? '1' : '0',
               'data-path': pathIds.has(node.id) ? '1' : '0',
               'data-dot': detail === 3 ? '1' : '0',
+              onPointerDown: function (id) {
+                return function (event) {
+                  if (!event.shiftKey || !editable) return
+                  event.stopPropagation()
+                  event.preventDefault()
+                  beginLink(id, event)
+                }
+              }(node.id),
               onClick: function (id) {
                 return function (event) {
                   event.stopPropagation()
@@ -1663,7 +1800,7 @@ function createMindMap(React) {
                     className: 'sn-mbtn',
                     'data-on': (selected.mastery || 0) === index ? '1' : '0',
                     onClick: function () {
-                      updateNode(selected.id, { mastery: index })
+                      updateNode(selected.id, { mastery: index }, 'mastery:' + selected.id)
                     },
                   },
                   label,
@@ -1682,7 +1819,7 @@ function createMindMap(React) {
               value: selected.note || '',
               placeholder: '写点什么…',
               onChange: function (event) {
-                updateNode(selected.id, { note: event.target.value })
+                updateNode(selected.id, { note: event.target.value }, 'note:' + selected.id)
               },
             }),
           ),
@@ -1763,7 +1900,7 @@ function createMindMap(React) {
 
     return h(
       'div',
-      { className: 'sn-root', 'data-theme': props.theme },
+      { className: 'sn-root', 'data-theme': props.theme, 'data-linking': linking ? '1' : '0' },
       h('style', null, CSS),
       h(
         'div',
@@ -1838,7 +1975,15 @@ function createMindMap(React) {
               setSelectedId('')
             },
           },
-          h('div', { className: 'sn-hint' }, editable ? '滚轮缩放 · 拖拽平移 · 双击进入 · Tab 新建 · F2 改名 · Del 删除' : '滚轮缩放 · 拖拽平移 · 双击进入子层'),
+          h(
+          'div',
+          { className: 'sn-hint' },
+          linking
+            ? '拖到另一个概念上松开：连一条关系（同向再连一次换类型，第三次取消）'
+            : editable
+              ? '滚轮缩放 · 拖拽平移 · 双击进入 · Tab 新建 · F2 改名 · Del 删除 · Shift 拖拽连边 · ⌘Z 撤销'
+              : '滚轮缩放 · 拖拽平移 · 双击进入子层',
+        ),
           props.liveText ? h('div', { className: 'sn-live' }, props.liveText) : null,
           h(
             'div',
@@ -1855,6 +2000,20 @@ function createMindMap(React) {
               edges,
             ),
             cards,
+          ),
+          /* 连边时的橡皮筋线：屏幕坐标系，盖在场景之上 */
+          h(
+            'svg',
+            { className: 'sn-linklayer', ref: linkOverlayRef },
+            h('path', {
+              ref: linkPathRef,
+              className: 'sn-linkline',
+              fill: 'none',
+              stroke: 'rgba(190,128,35,.9)',
+              strokeWidth: 2,
+              strokeDasharray: '6 4',
+              strokeLinecap: 'round',
+            }),
           ),
           h(
             'div',

@@ -19,8 +19,8 @@
       "repository": { "url": "https://github.com/Mathilde1214/synapsis" },
       "versions": [
         {
-          "version": "0.9.0",
-          "publishTimestamp": 1793920000,
+          "version": "0.10.0",
+          "publishTimestamp": 1794006400,
           "source": {
             "type": "git",
             "url": "https://github.com/Mathilde1214/synapsis",
