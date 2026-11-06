@@ -50,7 +50,7 @@
 
 **搜索**按标题、英文名、正文、笔记一起找。回车跳过去，那个概念会正中对齐并成为新的根。
 
-**就地编辑**：`Tab` 加子概念、`Enter` 加同级、`F2` 改名、`Delete` 删除。删一个有子概念的节点时会问：一起删掉，还是只删它、把子概念上提。改完 0.6 秒自动写回文件，写之前把上一版留成 `.bak`。
+**就地编辑**：`Tab` 加子概念、`Enter` 加同级、`F2` 改名、`Delete` 删除。删一个有子概念的节点时会问：一起删掉，还是只删它、把子概念上提。改完 0.6 秒自动写回文件；切图、新建、删除之前会先把没写完的改动落盘，保存失败就不让你切走。写之前把上一版存进 `.history/`，不是只留一份 `.bak`。
 
 **连边**：按住 `Shift` 从一张卡拖到另一张，松手建一条 `prereq`。同一对概念再拖一次变 `related`，第三次变 `contrast`，第四次把线删掉。反向拖会改方向并重置回 `prereq`。父子之间不建关系边——从属关系已经由树表达了。
 
@@ -93,13 +93,23 @@
 
 ## 安装
 
-仓库根目录就是插件包：`package.json` 里带 `dsh.bundle.patch`，`engines.dsh` 声明兼容的 DSH 版本。三种标准装法任选一种，装完刷新宿主页面。
+仓库根目录就是插件包：`package.json` 里带 `dsh.bundle.patch`，`engines.dsh` 声明兼容的 DSH 版本。装完刷新宿主页面（桌面端按 `Ctrl/Cmd+R`）。
+
+**先确认 Desktop 的前提**（用桌面版的人最常卡在这一步）：
+
+1. 先把 Desktop 正常启动一次，让它把 profile 初始化好；
+2. 完全退出 Desktop（不是关窗口）；
+3. 用 Desktop 自带的那份 CLI 装：`<安装目录>/resources/runtime/cli/bin/dsh`（Windows 是 `dsh.cmd`）。用 npm 全局装的 `dsh` 改不到 Desktop 的 profile。
+
+如果不想碰命令行，Desktop 的「插件」页面里也能装，效果一样。
 
 **从 GitHub 装（推荐，不需要任何构建）**
 
 ```sh
-dsh plugin --profile desktop add github:Mathilde1214/dsh-synapsis
+dsh plugin --profile desktop add github:Mathilde1214/dsh-synapsis#<提交哈希>
 ```
+
+钉住提交哈希是个好习惯：不钉的话，上游以后推的新代码会在你重装时被静默换上。哈希可以在[提交列表](https://github.com/Mathilde1214/dsh-synapsis/commits/main)里挑一个。
 
 包里是纯 JavaScript，`client.js` 等产物跟仓库一起提交，所以不需要 `prepare` 构建，也不会要求你为它开 pnpm 的 `allowBuilds`。
 
@@ -124,19 +134,27 @@ dsh plugin --profile desktop add /绝对路径/到/这个仓库
 dsh plugin --profile desktop remove dsh-synapsis
 ```
 
-**兼容性**：`engines.dsh` 是 `>=0.2.0 <0.3.0`。DSH 在安装时和启动 profile 时都会校验，不满足会直接拒绝并说明原因。想在新版 DSH 上跑，改这一段再装；面板只用到 `slots` 和 `webServer` 两个稳定扩展点。
+**兼容性**：`engines.dsh` 是 `>=0.2.0 <0.3.0`。DSH 在安装时和启动 profile 时都会校验，不满足会直接拒绝并说明原因。面板只用到 `slots`、`webServer`、`connection`、`tools`、`systemPrompt` 这几个扩展点；DSH 0.3 发布后会实测再放宽这个范围，不需要你自己改包里的字段。
 
-**从插件索引装**：仓库里带了 `plugin-market/index.json`，是 DSH 的自定义插件索引格式。在「插件 → 发现 → 添加索引源」里填这个地址，就能像应用商店一样浏览：
+**从插件索引装**：仓库里带了 `plugin-market/index.json`，是 DSH 的自定义插件索引格式。先到「插件 → 实验性插件」里打开 Custom plugin indexes，再到「插件 → 发现 → 添加索引源」填这个地址：
 
 ```
 https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/plugin-market/index.json
 ```
 
+## 安全模型
+
+插件只在 `127.0.0.1` 上、通过 DSH 自己的 web server 提供一组 `/synapsis-api/*` 路由，**没有**独立端口，也不对外监听。所有读接口之外的写操作（`/save`、`/create`、`/delete`）都要先过 DSH 的连接校验：不是从 DSH 页面发起的请求会被拒（`401`），而且必须声明 `content-type: application/json`（否则 `415`），请求体上限 8 MB。
+
+`/synapsis-api/katex/*` 是公式排版用的静态资源，保持公开。
+
+所以：不要用 `--host 0.0.0.0` 之类的方式把 DSH 的端口暴露到局域网或公网。真要远程访问，请走带鉴权的反向代理，别把裸端口放出去。
+
 ## 升级不会动你的图
 
 图存在库目录里，插件装在 DSH 的 profile 里，两处互不相干。`dsh plugin add`、`plugin_manager install_bundle`、卸载再重装，动的都只是 profile 下那一份代码副本，库目录不会被碰。
 
-另外还有两层兜底：每次保存前把上一版写成 `.bak`；删图不是真删，而是挪进 `.trash/`。
+另外还有两层兜底：每次真正覆盖前会把上一版存进 `.history/<图名>/`（5 分钟内内容没变不重复存，最多留 20 份）；删图不是真删，而是挪进 `.trash/`。
 
 所以升级的正确姿势就是直接装新版本，图会照旧在那儿。
 
@@ -147,8 +165,10 @@ https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/plugin-market/i
 | 优先级 | 位置 | 说明 |
 | --- | --- | --- |
 | 1 | 环境变量 `SYNAPSIS_DATA` | 填绝对路径就完全按它来 |
-| 2 | `<用户主目录>/Synapsis` | 默认值。Windows 是 `C:\Users\<你>\Synapsis`，macOS 是 `/Users/<你>/Synapsis`，Linux 是 `/home/<你>/Synapsis` |
-| 3 | `E:\dsh工作空间\析域` | 留给 0.13 之前的老用户：这个目录存在时才用，不存在就跳过 |
+| 2 | 插件配置里的 `dataDir` | 写在 `cordis.patch.yml` 的插件条目下，升级不丢 |
+| 3 | `<用户主目录>/Synapsis` | 默认值。Windows 是 `C:\Users\<你>\Synapsis`，macOS 是 `/Users/<你>/Synapsis`，Linux 是 `/home/<你>/Synapsis` |
+
+桌面端设置 `SYNAPSIS_DATA` 有个坑：macOS/Linux 上 Desktop 读的是登录 shell 的环境（`~/.zprofile`、`~/.zshrc`），改完要**完全退出再启动**；Windows 要在「系统属性 → 环境变量」里给当前用户加，然后重启 Desktop。不想折腾环境变量就改插件配置里的 `dataDir`。
 
 面板空态里会把实际用的目录印出来，可以直接选中复制，第一次使用会自动创建。第一次装上、库里还没有任何图时，会放一张五个节点的小示例（「示例 · 从这里开始」）——它只讲怎么操作，删掉就不会再生成。目录里每份图是一个 `*.mindmap.json`：
 
@@ -179,16 +199,22 @@ https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/plugin-market/i
 
 ```
 package.json            bundle 清单：dsh.bundle.patch / engines.dsh / dsh.client / files
-index.js                Host 半边：图库读写（/synapsis-api/list|load|save|delete）+ KaTeX 静态资源
-client-body.js          面板组件源码（图库切换、保存防抖、KaTeX 就绪等待）
+index.js                Host 半边：读配置、建图库、注册路由 / 工具 / 系统提示
+lib/paths.mjs           文件名白名单与库目录解析
+lib/validate.mjs        文档规范化（重复 id、成环、悬空边……修好并报警告）
+lib/store.mjs           图库读写：列表、读取、快照、原子保存、回收站、首装示例
+lib/http.mjs            /synapsis-api/* 路由：鉴权、JSON 校验、错误码
+lib/tools.mjs           给模型的三个工具（列图 / 读图 / 写图）与系统提示片段
+client-body.js          面板组件源码（切图、脏标记与保存、冲突提示、错误边界）
 client.js               构建产物：内核 + client-body 拼出来的客户端包，安装时用的就是它
-core/synapsis-core.js   渲染内核（布局、相机、LOD、连边、撤销），构建时拼进 client.js
-assets/katex/           自带的 KaTeX js/css/字体
+core/synapsis-core.js   渲染内核（布局、相机、LOD、连边、撤销、大纲、复习），构建时拼进 client.js
+assets/katex/           自带的 KaTeX js/css/字体（含 KaTeX 的 MIT 许可证）
 locale/{zh,en}.json     插件元信息
 cordis.patch.yml        装进 DSH 的 patch 片段
 plugin-market/          插件索引（format 1），供 DSH 的「发现」页读取
+test/                   node:test 单测（路径、图库、校验、复习排序、路由、打包清单）
 tools/build-plugin.mjs  构建：core + client-body → client.js
-tools/dev-server.mjs    开发用本地服务（图库 API + 联调页），不进 npm 包
+tools/dev-server.mjs    开发用本地服务，直接复用生产 handler，不进 npm 包
 tools/dev-panel/        联调页：在浏览器里跑真实 client.js
 tools/ocr*.mjs|ps1、extract-images.mjs、merge-chapters.mjs   讲义 → 概念图的离线流水线
 ```
@@ -197,22 +223,36 @@ tools/ocr*.mjs|ps1、extract-images.mjs、merge-chapters.mjs   讲义 → 概念
 
 ```sh
 npm run build     # node tools/build-plugin.mjs
+npm test          # node --test "test/**/*.test.mjs"
 npm run dev       # node tools/dev-server.mjs，然后开 http://127.0.0.1:7788/
 ```
 
-`files` 只列运行时需要的文件，所以 `core/`、`tools/` 不会进 npm 包，装到别人机器上的只有产物。
+`npm run dev` 用的库目录是仓库里的 `.dev-data/`（不会碰你自己的图），要指定别的目录就设 `SYNAPSIS_DATA`。
+
+`files` 只列运行时需要的文件，所以 `core/`、`tools/`、`test/` 不会进 npm 包，装到别人机器上的只有产物。
 
 ## 已知边界
 
-- 面板占的是宿主主面板，和聊天视图互斥，只能来回切。
+- 面板占的是宿主主面板，和聊天视图互斥，只能来回切。桌面端端口是随机的、登录票据也不进普通浏览器，所以「同端口开两个标签页同时看图聊天」只适用于 `dsh web`，桌面端别指望。
 - 关系边在焦点附近才浮现，否则几百个节点会缠成毛线。所以想看某条关系，得先钻进对应的章。
-- 多选还没做。导出的是当前这一层，不做整本书的一次性排版。
+- 多选还没做。PNG/SVG 导出的是**当前这一层**，Markdown 导出的是**整棵树**（从根遍历，适合拿去喂给别的工具）。
 - 复习只按掌握度排个优先级，没有做真正的间隔重复（不记「上次什么时候复习的」）。
-- 宿主主面板一次只能显示一个面板，所以做不到「看图的同时开聊天」——同一个端口开两个浏览器标签页可以。
+- 大纲视图是只读的，改内容还得回画布。
+- 界面文案目前只有中文（`locale/en.json` 里只有插件元信息）。
 
 ## 从讲义到图
 
-这套流水线是离线跑在仓库里的，用来把扫描版讲义变成概念图：
+**在对话里让它生成**（推荐）：面板顶栏「导入」会给你一段可以直接发的话和库目录路径。把 PDF 拖进对话，发那句话，DSH 里的模型会调三个工具完成剩下的工作：
+
+| 工具 | 作用 |
+| --- | --- |
+| `synapsis_list_maps` | 看库目录里已经有哪些图 |
+| `synapsis_read_map` | 读一份图的节点与边，用来增量修改 |
+| `synapsis_write_map` | 写一份**新**图（带结构与长度的服务端校验，原子落盘，不会覆盖同名图） |
+
+插件还会往系统提示里加一段说明：析域是什么、库目录在哪、`.mindmap.json` 长什么样、建议按「根 → 章 → 主题 → 概念」三层组织、`formal` 里可以直接写 LaTeX。所以模型不需要你解释格式，先给章节清单、你确认后再逐章生成就行。
+
+**自己离线跑**（仓库里的流水线，扫描件用）：
 
 ```
 PDF → extract-images.mjs（抠出整页 JPEG）

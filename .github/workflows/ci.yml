@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 产物是提交进仓库的，先确认它和源码一致：不一致说明有人改了 core/client-body 忘了 rebuild
+      - name: Rebuild the client bundle
+        run: node tools/build-plugin.mjs
+
+      - name: Bundle must be in sync with source
+        run: git diff --exit-code client.js
+
+      - name: Unit tests (including the pack manifest check)
+        run: node --test "test/**/*.test.mjs"

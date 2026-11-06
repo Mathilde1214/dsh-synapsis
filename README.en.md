@@ -50,7 +50,7 @@ Click "析域" in the sidebar and the panel takes over the main area.
 
 **Search** looks at titles, English names, body text and notes. Enter jumps there: the concept centres itself and becomes the new root.
 
-**Editing in place**: `Tab` adds a child, `Enter` adds a sibling, `F2` renames, `Delete` removes. Deleting a node with children asks whether to take the subtree or lift the children up. Changes are written back after 0.6s, and the previous version is kept as `.bak`.
+**Editing in place**: `Tab` adds a child, `Enter` adds a sibling, `F2` renames, `Delete` removes. Deleting a node with children asks whether to take the subtree or lift the children up. Changes are written back after 0.6s; switching maps, creating one, or deleting one flushes whatever is pending first, and a failed save blocks the switch instead of losing the edit. Before overwriting, the previous version goes into `.history/` — not a single `.bak`.
 
 **Linking**: hold `Shift` and drag from one card to another to create a `prereq` edge. Dragging the same pair again turns it into `related`, then `contrast`, then removes it. Dragging the other way round flips the direction and resets it to `prereq`. Parent and child never get a relation edge — the tree already says that.
 
@@ -89,13 +89,23 @@ Click "析域" in the sidebar and the panel takes over the main area.
 
 ## Install
 
-The repository root is the plugin package: `package.json` carries `dsh.bundle.patch`, and `engines.dsh` declares the supported DSH range. Pick one of the three standard routes, then reload the host page.
+The repository root is the plugin package: `package.json` carries `dsh.bundle.patch`, and `engines.dsh` declares the supported DSH range. Install, then reload the host page (`Ctrl/Cmd+R` on the desktop app).
+
+**Desktop prerequisites** (this is where most people get stuck):
+
+1. Launch the desktop app once so it initialises its profile;
+2. Quit it completely (closing the window is not enough);
+3. Use the CLI that ships with the app: `<install dir>/resources/runtime/cli/bin/dsh` (on Windows, `dsh.cmd`). A globally installed `dsh` from npm cannot modify the desktop profile.
+
+Or skip the shell entirely and install from the app's "Plugins" page.
 
 **From GitHub (recommended, no build step)**
 
 ```sh
-dsh plugin --profile desktop add github:Mathilde1214/dsh-synapsis
+dsh plugin --profile desktop add github:Mathilde1214/dsh-synapsis#<commit>
 ```
+
+Pin the commit: without it, whatever the upstream pushes later gets silently swapped in when you reinstall. Pick a hash from the [commit list](https://github.com/Mathilde1214/dsh-synapsis/commits/main).
 
 Everything is plain JavaScript and `client.js` is committed alongside the source, so there's no `prepare` script and nothing to approve in pnpm's `allowBuilds`.
 
@@ -120,19 +130,27 @@ You can also do it from the panel: `plugin_manager: install_bundle` with the dir
 dsh plugin --profile desktop remove dsh-synapsis
 ```
 
-**Compatibility**: `engines.dsh` is `>=0.2.0 <0.3.0`. DSH checks it both when installing and when starting a profile, and refuses with an explanation if it doesn't match. To run on a newer DSH, widen that range and reinstall; the panel only uses the `slots` and `webServer` extension points.
+**Compatibility**: `engines.dsh` is `>=0.2.0 <0.3.0`. DSH checks it both when installing and when starting a profile, and refuses with an explanation if it doesn't match. The panel uses the `slots`, `webServer`, `connection`, `tools` and `systemPrompt` extension points; once DSH 0.3 is out this range will be widened after testing, so you never have to edit it yourself.
 
-**From the plugin index**: the repo ships `plugin-market/index.json` in DSH's custom-index format. Add that URL under "Plugins → Discover → Add index source" and you can browse and install it like an app store listing:
+**From the plugin index**: the repo ships `plugin-market/index.json` in DSH's custom-index format. Enable Custom plugin indexes under "Plugins → Experimental plugins" first, then add this URL under "Plugins → Discover → Add index source":
 
 ```
 https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/plugin-market/index.json
 ```
 
+## Security model
+
+The plugin has no port of its own. It serves `/synapsis-api/*` on `127.0.0.1` through DSH's own web server, and every write (`/save`, `/create`, `/delete`) first goes through DSH's connection check: requests that don't come from the DSH page are rejected (`401`), the body must be `content-type: application/json` (otherwise `415`), and it's capped at 8 MB.
+
+`/synapsis-api/katex/*` stays public — it's just static typesetting assets.
+
+So: never expose the DSH port with `--host 0.0.0.0` or a port forward to the LAN. If you need remote access, put an authenticated reverse proxy in front of it.
+
 ## Upgrading won't touch your maps
 
 Maps live in the library folder; the plugin lives in the DSH profile. `dsh plugin add`, `plugin_manager install_bundle`, and uninstall-then-reinstall all only replace the code copy under the profile. The library folder is never involved.
 
-There are two safety nets as well: every save keeps the previous version as `.bak`, and deleting a map moves it into `.trash/` rather than removing it.
+There are two safety nets as well: before every real overwrite the previous version is copied into `.history/<map name>/` (skipped if the content is unchanged within five minutes, at most 20 kept); deleting a map moves it into `.trash/` rather than removing it.
 
 So upgrading is just installing the new version. Your maps stay where they are.
 
@@ -143,8 +161,10 @@ The first available location wins:
 | Priority | Location | Notes |
 | --- | --- | --- |
 | 1 | `SYNAPSIS_DATA` environment variable | An absolute path; used as-is |
-| 2 | `<home>/Synapsis` | Default. `C:\Users\<you>\Synapsis` on Windows, `/Users/<you>/Synapsis` on macOS, `/home/<you>/Synapsis` on Linux |
-| 3 | `E:\dsh工作空间\析域` | Legacy path for pre-0.13 installs: used only if it already exists |
+| 2 | `dataDir` in the plugin config | Set it in `cordis.patch.yml`; survives upgrades |
+| 3 | `<home>/Synapsis` | Default. `C:\Users\<you>\Synapsis` on Windows, `/Users/<you>/Synapsis` on macOS, `/home/<you>/Synapsis` on Linux |
+
+Setting `SYNAPSIS_DATA` for the desktop app has a gotcha: on macOS/Linux the app reads your login shell environment (`~/.zprofile`, `~/.zshrc`), so quit it completely and start it again; on Windows add a user environment variable and restart the app. If you'd rather not deal with that, set `dataDir` in the plugin config instead.
 
 The empty state prints the folder in use, so you can select and copy it instead of guessing. It's created on first use. On a first install, when the folder holds no maps at all, a five-node sample ("示例 · 从这里开始") is dropped in — it only explains the controls, and deleting it won't bring it back. Each map in that folder is a `*.mindmap.json`:
 
@@ -175,16 +195,22 @@ KaTeX ships with the plugin (`assets/katex/`, fonts included) and is served by t
 
 ```
 package.json            bundle manifest: dsh.bundle.patch / engines.dsh / dsh.client / files
-index.js                host half: library routes (/synapsis-api/list|load|save|delete) + KaTeX assets
-client-body.js          panel source (library switching, debounced save, KaTeX readiness)
+index.js                host half: reads config, builds the store, registers routes / tools / prompt
+lib/paths.mjs           filename whitelist and library-folder resolution
+lib/validate.mjs        document normalisation (duplicate ids, cycles, dangling edges…) with warnings
+lib/store.mjs           library I/O: list, read, snapshots, atomic save, trash, first-run sample
+lib/http.mjs            the /synapsis-api/* router: auth, JSON checks, error codes
+lib/tools.mjs           the three model-facing tools (list / read / write) plus the prompt section
+client-body.js          panel source (switching, dirty tracking and flushing, conflict banner, error boundary)
 client.js               build output: core + client-body, this is what gets installed
-core/synapsis-core.js   rendering core (layout, camera, LOD, linking, undo), bundled into client.js
-assets/katex/           bundled KaTeX js/css/fonts
+core/synapsis-core.js   rendering core (layout, camera, LOD, linking, undo, outline, review), bundled into client.js
+assets/katex/           bundled KaTeX js/css/fonts (including KaTeX's MIT licence)
 locale/{zh,en}.json     plugin metadata
 cordis.patch.yml        the patch fragment that mounts it into DSH
 plugin-market/          plugin index (format 1) for the Discover page
+test/                   node:test unit tests (paths, store, validation, review order, routes, pack manifest)
 tools/build-plugin.mjs  build: core + client-body → client.js
-tools/dev-server.mjs    local dev server (library API + harness page), not shipped in the npm package
+tools/dev-server.mjs    local dev server; reuses the real handler, not shipped in the npm package
 tools/dev-panel/        harness page that runs the real client.js in a browser
 tools/ocr*.mjs|ps1, extract-images.mjs, merge-chapters.mjs    offline textbook → concept-map pipeline
 ```
@@ -193,22 +219,36 @@ tools/ocr*.mjs|ps1, extract-images.mjs, merge-chapters.mjs    offline textbook �
 
 ```sh
 npm run build     # node tools/build-plugin.mjs
+npm test          # node --test "test/**/*.test.mjs"
 npm run dev       # node tools/dev-server.mjs, then open http://127.0.0.1:7788/
 ```
 
-`files` lists only what's needed at runtime, so `core/` and `tools/` stay out of the npm package; what lands on someone else's machine is the output alone.
+`npm run dev` uses `.dev-data/` inside the repo, so it never touches your own library; point `SYNAPSIS_DATA` elsewhere if you want a different folder.
+
+`files` lists only what's needed at runtime, so `core/`, `tools/` and `test/` stay out of the npm package; what lands on someone else's machine is the output alone.
 
 ## Known limits
 
-- The panel occupies the host's main panel, so it and the conversation view are mutually exclusive — you switch back and forth.
+- The panel occupies the host's main panel, so it and the conversation view are mutually exclusive — you switch back and forth. On the desktop app the port is random and the login ticket never reaches a normal browser, so "two tabs, one watching the map while the other chats" only works with `dsh web`.
 - Relation edges only surface near the focus; otherwise a few hundred nodes turn into yarn. To see a particular relation, go into its chapter first.
-- Multi-select isn't implemented yet. Export covers the current layer rather than typesetting the whole book in one go.
+- Multi-select isn't implemented yet. PNG/SVG export covers **the current layer**; Markdown export covers **the whole tree** (walked from the root, handy for feeding other tools).
 - Review only ranks concepts by mastery; there is no real spaced repetition yet — it doesn't remember when you last saw a concept.
-- Since the host shows one main panel at a time, you can't watch the map and chat side by side in one window; two browser tabs on the same port works.
+- The outline view is read-only; edits still happen on the canvas.
+- Interface copy is Chinese only (`locale/en.json` holds plugin metadata, not UI strings).
 
 ## From a textbook to a map
 
-The offline pipeline in this repo turns a scanned textbook into a concept map:
+**Ask for it in the conversation** (recommended): the panel's "导入" button gives you a sentence you can send plus the library path. Drop the PDF into the conversation, send that sentence, and the model in DSH drives three tools:
+
+| Tool | What it does |
+| --- | --- |
+| `synapsis_list_maps` | lists the maps already in the library |
+| `synapsis_read_map` | reads a map's nodes and edges, for incremental edits |
+| `synapsis_write_map` | writes a **new** map (validated server-side for structure and length, atomic, never overwrites an existing name) |
+
+The plugin also contributes a system-prompt section: what Synapsis is, where the library is, what a `.mindmap.json` looks like, the suggested "root → chapter → topic → concept" shape, and that `formal` takes LaTeX. So the model doesn't need you to explain the format — it can propose a chapter list, wait for your OK, then generate chapter by chapter.
+
+**Or run the offline pipeline** in this repo (for scans):
 
 ```
 PDF → extract-images.mjs   (pull the full-page JPEGs out)

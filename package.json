@@ -1,6 +1,6 @@
 {
   "name": "dsh-synapsis",
-  "version": "0.17.4",
+  "version": "0.18.0",
   "description": "Synapsis 析域 —— 把讲义铺成一张能走进去的概念图（DSH Web UI 面板插件）",
   "keywords": [
     "dsh",
@@ -24,17 +24,27 @@
   "files": [
     "index.js",
     "client.js",
+    "lib/paths.mjs",
+    "lib/validate.mjs",
+    "lib/store.mjs",
+    "lib/http.mjs",
+    "lib/tools.mjs",
     "cordis.patch.yml",
     "icon.svg",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "locale/en.json",
     "locale/zh.json",
     "package.json",
     "assets/katex/katex.min.js",
     "assets/katex/katex.min.css",
+    "assets/katex/LICENSE",
     "assets/katex/fonts"
   ],
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": "*"
+  },
   "engines": {
     "dsh": ">=0.2.0 <0.3.0"
   },
@@ -51,7 +61,9 @@
   "scripts": {
     "build": "node tools/build-plugin.mjs",
     "dev": "node tools/dev-server.mjs",
-    "pack:check": "npm pack --dry-run"
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "node tools/build-plugin.mjs && git diff --exit-code client.js"
   },
   "license": "MIT",
   "author": {

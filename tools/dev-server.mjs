@@ -3,25 +3,28 @@
  *
  *   node tools/dev-server.mjs            # 默认 7788
  *
- * 它做三件事：
+ * 它只做三件事：
  *   1. 把 tools/dev-panel/ 当站点根，托管联调页；
- *   2. 把仓库里的 /client.js、/core/*、/assets/katex/* 直接端出去（改完 rebuild 刷新即可）；
- *   3. 提供图库读写 /api/library*，以及插件路由 /synapsis-api/katex/* 的等价映射。
+ *   2. 把仓库里的 /client.js、/core/* 直接端出去（改完 rebuild 刷新即可）；
+ *   3. 把 /synapsis-api/* 原样交给插件真正的 handler —— 联调和生产同一套代码，
+ *      免得「开发能过、装进 DSH 就坏」。这里只是把 connection 换成一个放行的桩。
  *
  * 生产形态里这些路由由 DSH 的 Host 半边（index.js）提供。
  */
 import http from 'node:http'
 import path from 'node:path'
-import { promises as fs, readFileSync, existsSync } from 'node:fs'
+import { promises as fs, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { createStore } from '../lib/store.mjs'
+import { createHandler } from '../lib/http.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
 const PANEL = path.join(HERE, 'dev-panel')
 const PORT = Number(process.env.PORT || 7788)
 const HOST = process.env.SYNAPSIS_HOST || '127.0.0.1'
-const DATA = process.env.SYNAPSIS_DATA || 'E:\\dsh工作空间\\析域'
-const NAME_RE = /^[^\u0000-\u001f\\/:*?"<>|]+\.mindmap\.json$/
+const DATA = process.env.SYNAPSIS_DATA || path.join(ROOT, '.dev-data')
+const KATEX_DIR = path.join(ROOT, 'assets', 'katex')
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -34,12 +37,6 @@ const MIME = {
   '.woff': 'font/woff',
   '.ttf': 'font/ttf',
   '.png': 'image/png',
-}
-
-function sendJson(res, code, value) {
-  const body = JSON.stringify(value)
-  res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) })
-  res.end(body)
 }
 
 async function sendFile(res, file) {
@@ -57,175 +54,43 @@ async function sendFile(res, file) {
   }
 }
 
-function safeName(raw) {
-  const name = decodeURIComponent(String(raw || ''))
-  if (!name || name.includes('..') || name.includes('/') || name.includes('\\')) return null
-  return NAME_RE.test(name) ? name : null
-}
+const store = createStore(DATA)
+const api = createHandler({
+  store,
+  katexDir: KATEX_DIR,
+  /* 联调页没有 DSH 登录票据，用一个永远放行的桩代替 connection 服务 */
+  connection: { requestRejection: () => undefined },
+})
 
-/* 空库时放一张小样图（与 index.js 的 ensureSample 等价，联调时用） */
-async function seedIfEmpty() {
-  try {
-    await fs.mkdir(DATA, { recursive: true })
-    if (existsSync(path.join(DATA, '.seeded'))) return
-    const names = await fs.readdir(DATA)
-    if (names.some((n) => NAME_RE.test(n))) return
-    const node = (id, title, parent, summary, extra) =>
-      Object.assign(
-        { id, title, parent, summary, definition: '', formal: '', intuition: '', examples: '', pitfalls: '', mastery: 0, note: '' },
-        extra || {},
-      )
-    const doc = {
-      version: 1,
-      title: '示例 · 从这里开始',
-      subtitle: '一张很小的图，看完就知道怎么用',
-      updated: new Date().toISOString(),
-      nodes: [
-        node('root', '示例 · 从这里开始', null, '一张很小的图，看完就知道怎么用', {
-          definition: '越往里越细，缩回去就是上一层。这张示例只演示操作。',
-        }),
-        node('scroll', '滚轮就是层级', 'root', '往前推进入下一层，缩一半退回上一层'),
-        node('sidebar', '侧栏是概念卡', 'root', '选中一个概念，右边是它的正文与出处'),
-        node('keys', '几个顺手的键', 'root', '⌘K 搜索 · Tab 加子概念 · Shift 拖拽连边 · ⌘Z 撤销'),
-        node('export', '导出与换纸', 'root', '顶栏右边：搜索、导出、日光纸/夜光纸'),
-      ],
-      edges: [
-        { from: 'scroll', to: 'sidebar', type: 'related' },
-        { from: 'sidebar', to: 'keys', type: 'related' },
-      ],
-    }
-    await fs.writeFile(path.join(DATA, '示例-从这里开始.mindmap.json'), JSON.stringify(doc, null, 2), 'utf8')
-    await fs.writeFile(path.join(DATA, '.seeded'), new Date().toISOString() + '\n', 'utf8')
-  } catch {}
-}
-
-async function listMaps() {
-  let names = []
-  try {
-    names = await fs.readdir(DATA)
-  } catch {
-    return []
-  }
-  const items = []
-  for (const name of names) {
-    if (!NAME_RE.test(name)) continue
-    try {
-      const full = path.join(DATA, name)
-      const [stat, text] = await Promise.all([fs.stat(full), fs.readFile(full, 'utf8')])
-      const doc = JSON.parse(text)
-      items.push({
-        name,
-        title: doc.title || name.replace(/\.mindmap\.json$/, ''),
-        nodes: Array.isArray(doc.nodes) ? doc.nodes.length : 0,
-        mtime: stat.mtimeMs,
-      })
-    } catch {
-      /* 坏文件跳过 */
-    }
-  }
-  items.sort((a, b) => b.mtime - a.mtime)
-  return items
-}
-
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = []
-    req.on('data', (c) => chunks.push(c))
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
-    req.on('error', reject)
-  })
-}
+const sampleDoc = () => ({
+  version: 1,
+  title: '示例 · 从这里开始',
+  subtitle: '一张很小的图，看完就知道怎么用',
+  updated: new Date().toISOString(),
+  nodes: [
+    { id: 'root', title: '示例 · 从这里开始', parent: null, summary: '一张很小的示例图', definition: '', formal: '', intuition: '', examples: '', pitfalls: '', mastery: 0, note: '' },
+    { id: 'scroll', title: '滚轮就是层级', parent: 'root', summary: '往下滚进一层，往上滚退一层', definition: '', formal: '', intuition: '', examples: '', pitfalls: '', mastery: 0, note: '' },
+    { id: 'sidebar', title: '侧栏是概念卡', parent: 'root', summary: '点卡片，右边展开细节', definition: '', formal: '', intuition: '', examples: '', pitfalls: '', mastery: 0, note: '' },
+    { id: 'keys', title: '几个顺手的键', parent: 'root', summary: 'Tab 新建 · F2 改名 · Del 删除', definition: '', formal: '', intuition: '', examples: '', pitfalls: '', mastery: 0, note: '' },
+    { id: 'export', title: '导出与换纸', parent: 'root', summary: '顶栏右边能导出和换纸', definition: '', formal: '', intuition: '', examples: '', pitfalls: '', mastery: 0, note: '' },
+  ],
+  edges: [
+    { from: 'scroll', to: 'sidebar', type: 'related' },
+    { from: 'sidebar', to: 'keys', type: 'related' },
+  ],
+})
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', 'http://' + (req.headers.host || HOST))
   const pathname = url.pathname
 
-  /* ---- 图库 ---- */
-  if (pathname === '/api/library' && req.method === 'GET') {
-    return sendJson(res, 200, { ok: true, dir: DATA, items: await listMaps() })
-  }
-  if (pathname.startsWith('/api/library/')) {
-    const name = safeName(pathname.slice('/api/library/'.length))
-    if (!name) return sendJson(res, 400, { ok: false, error: 'bad name' })
-    const full = path.join(DATA, name)
-    if (req.method === 'GET') {
-      try {
-        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
-        return res.end(await fs.readFile(full, 'utf8'))
-      } catch {
-        return sendJson(res, 404, { ok: false, error: 'not found' })
-      }
-    }
-    if (req.method === 'PUT') {
-      const body = await readBody(req)
-      let doc = null
-      try {
-        doc = JSON.parse(body)
-      } catch {
-        return sendJson(res, 400, { ok: false, error: 'bad json' })
-      }
-      if (!doc || !Array.isArray(doc.nodes)) return sendJson(res, 400, { ok: false, error: 'nodes required' })
-      await fs.mkdir(DATA, { recursive: true })
-      await fs.writeFile(full, JSON.stringify(doc, null, 2), 'utf8')
-      return sendJson(res, 200, { ok: true, name, nodes: doc.nodes.length })
-    }
-    if (req.method === 'DELETE') {
-      const trash = path.join(DATA, '.trash')
-      await fs.mkdir(trash, { recursive: true })
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-      await fs.rename(full, path.join(trash, name + '.' + stamp))
-      return sendJson(res, 200, { ok: true, name, trashed: true })
-    }
-  }
-
-  /* ---- 新建空白图（联调页用；生产由 index.js 的 /create 提供） ---- */
-  if (pathname === '/api/library-create' && req.method === 'POST') {
-    let title = '未命名图'
-    try {
-      const parsed = JSON.parse((await readBody(req)) || '{}')
-      if (parsed && parsed.title) title = String(parsed.title)
-    } catch {}
-    const slug = title.replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'map'
-    let name = slug + '.mindmap.json'
-    let n = 2
-    while (existsSync(path.join(DATA, name))) {
-      name = slug + '-' + n + '.mindmap.json'
-      n += 1
-    }
-    const doc = {
-      version: 1,
-      title,
-      subtitle: '',
-      updated: new Date().toISOString(),
-      nodes: [
-        {
-          id: 'root',
-          title,
-          parent: null,
-          summary: '',
-          definition: '',
-          formal: '',
-          intuition: '',
-          examples: '',
-          pitfalls: '',
-          mastery: 0,
-          note: '',
-        },
-      ],
-      edges: [],
-    }
-    await fs.mkdir(DATA, { recursive: true })
-    await fs.writeFile(path.join(DATA, name), JSON.stringify(doc, null, 2), 'utf8')
-    return sendJson(res, 200, { ok: true, name, dir: DATA, data: doc })
-  }
-
-  /* ---- 插件路由的等价映射：让联调页用和生产一样的 URL ---- */
-  if (pathname.startsWith('/synapsis-api/katex/')) {
-    const rel = pathname.slice('/synapsis-api/katex/'.length)
-    if (rel.includes('..')) return sendJson(res, 403, { ok: false })
-    return sendFile(res, path.join(ROOT, 'assets', 'katex', rel))
-  }
+  /* 联调页要加载构建产物本身；它必须排在 /synapsis-api/* 兜底之前 */
   if (pathname === '/synapsis-api/_client.js') return sendFile(res, path.join(ROOT, 'client.js'))
+
+  /* 插件路由（含 /katex/*）：原样交给真实 handler */
+  if (pathname.startsWith('/synapsis-api/')) {
+    return api(req, res)
+  }
 
   /* ---- 静态 ---- */
   if (pathname === '/' || pathname === '/index.html') return sendFile(res, path.join(PANEL, 'index.html'))
@@ -244,7 +109,7 @@ const server = http.createServer(async (req, res) => {
 })
 
 if (!existsSync(DATA)) console.warn('[dev] 图库目录不存在：' + DATA)
-await seedIfEmpty()
+await store.ensureSample('示例-从这里开始.mindmap.json', sampleDoc)
 server.listen(PORT, HOST, () => {
   console.log('[dev] 联调页 http://' + HOST + ':' + PORT + '/')
   console.log('[dev] 图库 ' + DATA)

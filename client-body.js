@@ -18,6 +18,16 @@ function useKatexReady() {
   return ready
 }
 
+const ERROR_TEXT = {
+  bad_json: '这个文件不是合法的 JSON，可能写坏了。',
+  bad_doc: '这个文件的结构不对（缺少 nodes 数组）。',
+  not_found: '文件不见了，可能在别处被删掉了。',
+  conflict: '文件在别处被改过了。',
+  exists: '已经有同名的图了。',
+  bad_name: '文件名不合法。',
+  unsupported_media: '请求格式不对。',
+}
+
 async function jget(url) {
   const res = await fetch(url, { headers: { accept: 'application/json' } })
   const text = await res.text()
@@ -25,7 +35,14 @@ async function jget(url) {
   try {
     parsed = JSON.parse(text)
   } catch {}
-  if (!res.ok) throw new Error((parsed && parsed.error) || 'HTTP ' + res.status)
+  if (!res.ok) {
+    const code = (parsed && parsed.error) || 'HTTP ' + res.status
+    throw Object.assign(new Error(ERROR_TEXT[code] || code), { code })
+  }
+  if (parsed && parsed.ok === false) {
+    const code = parsed.error || 'unknown'
+    throw Object.assign(new Error(ERROR_TEXT[code] || code), { code })
+  }
   return parsed
 }
 
@@ -37,12 +54,51 @@ function hostDark() {
   return document.documentElement.getAttribute('data-theme') === 'dark'
 }
 
+/* 渲染崩了不该让整块面板变白：兜住它，给一个能重新加载的出口。 */
+class MapBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { err: null }
+  }
+
+  static getDerivedStateFromError(err) {
+    return { err }
+  }
+
+  componentDidCatch(err) {
+    console.warn('[synapsis] map crashed', err)
+  }
+
+  render() {
+    if (!this.state.err) return this.props.children
+    return hh(
+      'div',
+      { style: { padding: '28px 24px', lineHeight: 1.7 } },
+      hh('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 6 } }, '这张图渲染失败'),
+      hh('div', { style: { opacity: 0.66, fontSize: 13, whiteSpace: 'pre-wrap' } }, String(this.state.err && this.state.err.message)),
+      hh(
+        'button',
+        {
+          style: { marginTop: 12, fontSize: 13, padding: '6px 12px', cursor: 'pointer' },
+          onClick: () => {
+            this.setState({ err: null })
+            this.props.onReload()
+          },
+        },
+        '重新加载',
+      ),
+    )
+  }
+}
+
 function Panel() {
   const [files, setFiles] = React.useState([])
   const [name, setName] = React.useState('')
   const [doc, setDoc] = React.useState(null)
   const [status, setStatus] = React.useState('读取图库…')
   const [error, setError] = React.useState('')
+  const [conflict, setConflict] = React.useState(null)
+  const [warnings, setWarnings] = React.useState([])
   const [armDelete, setArmDelete] = React.useState(false)
   const [dir, setDir] = React.useState('')
   const [darkHost, setDarkHost] = React.useState(hostDark)
@@ -77,6 +133,7 @@ function Panel() {
     const timer = setTimeout(() => setArmDelete(false), 4000)
     return () => clearTimeout(timer)
   }, [armDelete])
+
   const katexReady = useKatexReady()
   const renderMath = React.useMemo(
     () => (katexReady && window.katex ? comp.createMathRenderer(window.katex) : null),
@@ -85,90 +142,171 @@ function Panel() {
   const nameRef = React.useRef('')
   const timerRef = React.useRef(0)
   const docRef = React.useRef(null)
+  const mtimeRef = React.useRef(null)
+  const dirtyRef = React.useRef(false)
+  const savingRef = React.useRef(null)
 
   nameRef.current = name
   docRef.current = doc
 
-  const openNamed = React.useCallback(async (pick) => {
-    setStatus('读取中…')
-    setError('')
-    try {
-      const list = await jget('/synapsis-api/list')
-      const items = (list && list.items) || []
-      setFiles(items)
-      setDir((list && list.dir) || '')
-      const next = pick || nameRef.current || (items[0] && items[0].name) || ''
-      if (next && items.some((item) => item.name === next)) {
-        const loaded = await jget('/synapsis-api/load?name=' + encodeURIComponent(next))
-        setName(next)
-        setDoc(loaded)
-      } else {
-        setName('')
-        setDoc(null)
+  const save = React.useCallback(async (opts) => {
+    const current = docRef.current
+    const target = nameRef.current
+    const options = opts || {}
+    clearTimeout(timerRef.current)
+    if (!current || !target) return true
+    if (!dirtyRef.current && !options.force) return true
+    if (savingRef.current) await savingRef.current.catch(() => {})
+    const body = JSON.stringify({ name: target, data: current, baseMtime: mtimeRef.current })
+    const sending = (async () => {
+      try {
+        const res = await fetch('/synapsis-api/save', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body,
+          keepalive: !!options.keepalive,
+        })
+        const payload = await res.json().catch(() => null)
+        if (res.status === 409) {
+          setConflict({ mtime: payload && payload.mtime, name: target })
+          setStatus('文件已被外部修改')
+          return false
+        }
+        if (!res.ok || (payload && payload.ok === false)) {
+          const code = (payload && payload.error) || 'HTTP ' + res.status
+          throw Object.assign(new Error(ERROR_TEXT[code] || code), { code })
+        }
+        dirtyRef.current = false
+        setConflict(null)
+        if (payload && typeof payload.mtime === 'number') {
+          mtimeRef.current = payload.mtime
+        }
+        setStatus('已保存')
+        return true
+      } catch (err) {
+        setStatus('保存失败：' + (err && err.message ? err.message : String(err)))
+        return false
+      } finally {
+        savingRef.current = null
       }
-      setStatus('')
-    } catch (err) {
-      setError(err && err.message ? err.message : String(err))
-      setStatus('')
-    }
+    })()
+    savingRef.current = sending
+    return sending
   }, [])
+
+  const flush = React.useCallback(async () => {
+    clearTimeout(timerRef.current)
+    if (savingRef.current) await savingRef.current.catch(() => {})
+    return save()
+  }, [save])
+
+  const openNamed = React.useCallback(
+    async (pick) => {
+      /* 切图前先把还没落盘的改动写完；写不成就别切，免得「切换」变成丢数据 */
+      const clean = await flush()
+      if (!clean) {
+        setStatus('有改动没保存成功，先别切图')
+        return
+      }
+      setStatus('读取中…')
+      setError('')
+      try {
+        const list = await jget('/synapsis-api/list')
+        const items = (list && list.items) || []
+        setFiles(items)
+        setDir((list && list.dir) || '')
+        const next = pick || nameRef.current || (items[0] && items[0].name) || ''
+        if (next && items.some((item) => item.name === next)) {
+          const loaded = await jget('/synapsis-api/load?name=' + encodeURIComponent(next))
+          setName(next)
+          nameRef.current = next
+          setDoc(loaded.data)
+          docRef.current = loaded.data
+          mtimeRef.current = typeof loaded.mtime === 'number' ? loaded.mtime : null
+          dirtyRef.current = false
+          setConflict(null)
+          setWarnings((loaded && loaded.warnings) || [])
+          setStatus(
+            loaded && loaded.warnings && loaded.warnings.length
+              ? '已修复 ' + loaded.warnings.length + ' 处结构问题'
+              : '',
+          )
+        } else {
+          setName('')
+          nameRef.current = ''
+          setDoc(null)
+          docRef.current = null
+          mtimeRef.current = null
+          dirtyRef.current = false
+          setWarnings([])
+          setStatus('')
+        }
+      } catch (err) {
+        const code = err && err.code
+        if (code === 'bad_json' || code === 'bad_doc') {
+          setError((ERROR_TEXT[code] || '') + (pick ? '（' + pick + '）' : ''))
+        } else {
+          setError(err && err.message ? err.message : String(err))
+        }
+        setStatus('')
+      }
+    },
+    [flush],
+  )
 
   React.useEffect(() => {
     openNamed('')
   }, [openNamed])
 
+  /* 窗口获得焦点时：刷新列表，并检查当前文件是不是在别处被改过 */
   React.useEffect(() => {
     const onFocus = () => {
       if (!docRef.current) return
-      jget('/synapsis-api/list').then((list) => {
-        if (list && list.items) setFiles(list.items)
-      }).catch(() => {})
+      jget('/synapsis-api/list')
+        .then((list) => {
+          const items = (list && list.items) || []
+          setFiles(items)
+          const mine = items.find((item) => item.name === nameRef.current)
+          if (mine && mtimeRef.current && mine.mtime > mtimeRef.current + 1.5) {
+            setConflict({ mtime: mine.mtime, name: mine.name })
+          }
+        })
+        .catch(() => {})
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [])
-
-  const save = React.useCallback(async () => {
-    const current = docRef.current
-    const target = nameRef.current
-    if (!current || !target) return
-    try {
-      const res = await fetch('/synapsis-api/save', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: target, data: current }),
-      })
-      if (!res.ok) throw new Error('HTTP ' + res.status)
-      const payload = await res.json().catch(() => null)
-      if (payload && payload.ok === false) throw new Error(payload.error || '被拒绝')
-      setStatus('已保存')
-    } catch (err) {
-      setStatus('保存失败：' + (err && err.message ? err.message : String(err)))
-    }
   }, [])
 
   const onChange = React.useCallback(
     (next) => {
       setDoc(next)
       docRef.current = next
+      dirtyRef.current = true
       setStatus('保存中…')
       clearTimeout(timerRef.current)
-      timerRef.current = setTimeout(save, 600)
+      timerRef.current = setTimeout(() => {
+        save()
+      }, 600)
     },
     [save],
   )
 
-  /* 关面板 / 切图前把还在防抖里的那次保存推出去，否则最后 600ms 的改动会丢 */
+  /* 关面板前把还在防抖里的那次保存推出去，否则最后 600ms 的改动会丢 */
   React.useEffect(
     () => () => {
       clearTimeout(timerRef.current)
-      save()
+      save({ keepalive: true, force: dirtyRef.current })
     },
     [save],
   )
 
   /* 新建一张空白图：根节点就叫「未命名图」，进去按 F2 改 */
   const newMap = React.useCallback(async () => {
+    const clean = await flush()
+    if (!clean) {
+      setStatus('有改动没保存成功，先别新建')
+      return
+    }
     setStatus('新建中…')
     try {
       const res = await fetch('/synapsis-api/create', {
@@ -177,35 +315,42 @@ function Panel() {
         body: JSON.stringify({ title: '未命名图' }),
       })
       const payload = await res.json().catch(() => null)
-      if (!res.ok || (payload && payload.ok === false)) throw new Error((payload && payload.error) || 'HTTP ' + res.status)
+      if (!res.ok || (payload && payload.ok === false)) {
+        const code = (payload && payload.error) || 'HTTP ' + res.status
+        throw Object.assign(new Error(ERROR_TEXT[code] || code), { code })
+      }
       await openNamed(payload.name)
       setStatus('已新建：按 Tab 加概念，F2 改根节点名字')
     } catch (err) {
       setStatus('新建失败：' + (err && err.message ? err.message : String(err)))
     }
-  }, [openNamed])
+  }, [flush, openNamed])
 
-  const removeMap = React.useCallback(async () => {    const target = nameRef.current
+  const removeMap = React.useCallback(async () => {
+    const target = nameRef.current
     if (!target) return
     setArmDelete(false)
     setStatus('删除中…')
     try {
+      /* 先等正在写的保存落地，再删 —— 否则删完可能又被防抖里的 save 写回去 */
+      clearTimeout(timerRef.current)
+      if (savingRef.current) await savingRef.current.catch(() => {})
+      dirtyRef.current = false
       const res = await fetch('/synapsis-api/delete', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name: target }),
       })
       if (!res.ok) {
-        const text = await res.text()
-        let parsed = null
-        try {
-          parsed = JSON.parse(text)
-        } catch {}
-        throw new Error((parsed && parsed.error) || 'HTTP ' + res.status)
+        const payload = await res.json().catch(() => null)
+        const code = (payload && payload.error) || 'HTTP ' + res.status
+        throw Object.assign(new Error(ERROR_TEXT[code] || code), { code })
       }
       setName('')
+      nameRef.current = ''
       setDoc(null)
       docRef.current = null
+      mtimeRef.current = null
       await openNamed('')
       setStatus('已删除')
     } catch (err) {
@@ -233,12 +378,12 @@ function Panel() {
   if (error) {
     return hh(
       'div',
-      { style: { padding: '28px 24px', font: 'inherit', lineHeight: 1.7 } },
+      { style: { padding: '28px 24px', lineHeight: 1.7 } },
       hh('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 6 } }, '读不到图库'),
       hh('div', { style: { opacity: 0.7, fontSize: 13 } }, error),
       hh(
         'button',
-        { style: { marginTop: 12, font: 'inherit', fontSize: 13, padding: '6px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
+        { style: { marginTop: 12, fontSize: 13, padding: '6px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
         '重试',
       ),
     )
@@ -284,9 +429,9 @@ function Panel() {
             hh('br'),
             '把生成好的 ',
             hh('code', null, '*.mindmap.json'),
-            ' 放进这个目录，再点「重新读取」即可；也可以设环境变量 ',
+            ' 放进这个目录，再点「重新读取」即可；也可以在插件配置里改 dataDir，或设环境变量 ',
             hh('code', null, 'SYNAPSIS_DATA'),
-            ' 换到别处。',
+            '。',
           )
         : null,
       hh(
@@ -294,12 +439,12 @@ function Panel() {
         { style: { display: 'flex', gap: 10 } },
         hh(
           'button',
-          { style: { font: 'inherit', fontSize: 13, padding: '6px 14px', cursor: 'pointer' }, onClick: newMap },
+          { style: { fontSize: 13, padding: '6px 14px', cursor: 'pointer' }, onClick: newMap },
           '新建一张空白图',
         ),
         hh(
           'button',
-          { style: { font: 'inherit', fontSize: 12.5, padding: '5px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
+          { style: { fontSize: 12.5, padding: '5px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
           '重新读取',
         ),
       ),
@@ -314,16 +459,7 @@ function Panel() {
   const leading = hh(
     React.Fragment,
     null,
-    hh(
-      'button',
-      {
-        className: 'sn-chip',
-        title: '新建一张空白图',
-        onClick: newMap,
-        style: { opacity: 0.8 },
-      },
-      '+ 新建',
-    ),
+    hh('button', { className: 'sn-chip', title: '新建一张空白图', onClick: newMap, style: { opacity: 0.8 } }, '+ 新建'),
     hh(
       'select',
       {
@@ -362,17 +498,74 @@ function Panel() {
     ),
   )
 
-  return hh(MindMap, {
-    key: name,
-    data: doc,
-    leading,
-    dir,
-    theme,
-    onToggleTheme: toggleTheme,
-    initialFocusId: initialFocus,
-    onFocusChange,
-    renderMath,
-    statusText: status,
-    onChange,
-  })
+  const banner = conflict
+    ? hh(
+        'div',
+        {
+          style: {
+            position: 'absolute',
+            left: '50%',
+            top: 54,
+            transform: 'translateX(-50%)',
+            zIndex: 30,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '8px 14px',
+            borderRadius: 8,
+            fontSize: 12.5,
+            background: 'rgba(176,65,58,.94)',
+            color: '#fff8f2',
+            boxShadow: '0 8px 24px rgba(0,0,0,.28)',
+          },
+        },
+        hh('span', null, '这个文件在别处被改过了'),
+        hh(
+          'button',
+          {
+            style: { fontSize: 12, padding: '3px 10px', cursor: 'pointer' },
+            onClick: () => openNamed(conflict.name),
+          },
+          '重新加载',
+        ),
+        hh(
+          'button',
+          {
+            style: { fontSize: 12, padding: '3px 10px', cursor: 'pointer' },
+            onClick: () => {
+              mtimeRef.current = conflict.mtime
+              setConflict(null)
+              dirtyRef.current = true
+              save({ force: true })
+            },
+          },
+          '用我这版覆盖',
+        ),
+      )
+    : null
+
+  const statusText = [status, warnings.length ? '已修复 ' + warnings.length + ' 处' : ''].filter(Boolean).join(' · ')
+
+  return hh(
+    'div',
+    { style: { position: 'relative', height: '100%', width: '100%', flex: '1 1 auto', minWidth: 0 } },
+    hh(
+      MapBoundary,
+      { onReload: () => openNamed(name) },
+      hh(MindMap, {
+        key: name,
+        data: doc,
+        leading,
+        dir,
+        theme,
+        onToggleTheme: toggleTheme,
+        initialFocusId: initialFocus,
+        onFocusChange,
+        renderMath,
+        statusText,
+        onChange,
+      }),
+    ),
+    banner,
+  )
 }

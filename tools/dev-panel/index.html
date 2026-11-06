@@ -15,35 +15,11 @@
       在浏览器里跑真实的插件产物（仓库根的 client.js）：
       1) 伪造 __ModuleLoader__，把 react 从 UMD 全局递给工厂；
       2) 伪造 ctx（只实现 slots.inject / slots.register 与 effect）；
-      3) 把面板组件挂到 #host，fetch 走 shim 映射到本服务的 /api/*。
+      3) 把面板组件挂到 #host。
+      网络请求不做任何映射：tools/dev-server.mjs 已经在同源上跑真实的
+      /synapsis-api/*（同一个 lib/http.mjs），所以联调页看到的是生产行为。
     -->
     <script>
-      const REAL_FETCH = window.fetch.bind(window)
-      window.fetch = (input, init) => {
-        let url = String(input)
-        if (url.startsWith('/synapsis-api/list')) url = '/api/library'
-        else if (url.startsWith('/synapsis-api/load?name=')) {
-          url = '/api/library/' + url.slice('/synapsis-api/load?name='.length)
-        } else if (url === '/synapsis-api/save') {
-          const body = JSON.parse((init && init.body) || '{}')
-          return REAL_FETCH('/api/library/' + encodeURIComponent(body.name), {
-            method: 'PUT',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(body.data),
-          })
-        } else if (url === '/synapsis-api/create') {
-          return REAL_FETCH('/api/library-create', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: (init && init.body) || '{}',
-          })
-        } else if (url === '/synapsis-api/delete') {
-          const body = JSON.parse((init && init.body) || '{}')
-          return REAL_FETCH('/api/library/' + encodeURIComponent(body.name), { method: 'DELETE' })
-        }
-        return REAL_FETCH(url, init)
-      }
-
       window.__ModuleLoader__ = {
         load(def) {
           window.__synapsisMod = def.factory((name) => {

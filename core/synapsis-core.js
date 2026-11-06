@@ -10,6 +10,21 @@ function createMindMap(React) {
   var useMemo = React.useMemo
   var useCallback = React.useCallback
 
+  /* 复习排序：模糊(1) → 未读(0) → 已掌握(2)，同档按标题。
+     注意 `a - b || c` 这种写法里 || 的右侧必须是完整比较结果，
+     以前写成 `a - b || c < d ? -1 : 1` 会让「只要档位不同就返回 -1」。 */
+  function sortReviewPool(nodes) {
+    var pool = (nodes || []).filter(function (n) {
+      return n && n.id && n.parent
+    })
+    var rank = function (n) {
+      return n.mastery === 1 ? 0 : n.mastery === 0 ? 1 : 2
+    }
+    return pool.sort(function (a, b) {
+      return rank(a) - rank(b) || String(a.title || '').localeCompare(String(b.title || ''), 'zh')
+    })
+  }
+
   /* ---------------------------------------------------------------- */
   /* geometry                                                          */
   /* ---------------------------------------------------------------- */
@@ -1034,18 +1049,8 @@ function createMindMap(React) {
     /* ---- 复习：先收「模糊」的，再收「没读过」的，最后才是已掌握的 ---- */
     var startReview = useCallback(
       function () {
-        var pool = []
-        ;(data && data.nodes ? data.nodes : []).forEach(function (n) {
-          if (!n || !n.id || !n.parent) return
-          pool.push(n)
-        })
+        var pool = sortReviewPool(data && data.nodes ? data.nodes : [])
         if (!pool.length) return
-        var rank = function (n) {
-          return n.mastery === 1 ? 0 : n.mastery === 0 ? 1 : 2
-        }
-        pool.sort(function (a, b) {
-          return rank(a) - rank(b) || String(a.title) < String(b.title) ? -1 : 1
-        })
         setReview({
           queue: pool.slice(0, 15).map(function (n) {
             return n.id
@@ -3656,5 +3661,11 @@ function createMindMap(React) {
     )
   }
 
-  return { MindMap: MindMap, buildLayout: buildLayout, fitFor: fitFor, createMathRenderer: createMathRenderer }
+  return {
+    MindMap: MindMap,
+    buildLayout: buildLayout,
+    fitFor: fitFor,
+    createMathRenderer: createMathRenderer,
+    sortReviewPool: sortReviewPool,
+  }
 }
