@@ -9,7 +9,7 @@ import { createHandler } from '../lib/http.mjs'
 
 /* 起一个真的 HTTP 服务来测路由：比 mock req/res 更接近线上，
    也能顺带验证状态码和 content-type。 */
-async function boot(options = {}) {
+async function boot(t, options = {}) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'syn-http-'))
   const katexDir = path.join(dir, 'katex')
   await fs.mkdir(katexDir, { recursive: true })
@@ -40,6 +40,8 @@ async function boot(options = {}) {
     await new Promise((resolve) => server.close(resolve))
     await fs.rm(dir, { recursive: true, force: true })
   }
+  /* 断言失败时也要把 server 关掉：否则监听句柄让 node:test 永远等下去 */
+  t.after(close)
   return { base, store, close, dir, katexDir }
 }
 
@@ -50,8 +52,8 @@ const jsonPost = (url, body) =>
     body: JSON.stringify(body),
   })
 
-test('不受信任的连接被拒绝', async () => {
-  const ctx = await boot({ connection: { requestRejection: () => 401 } })
+test('不受信任的连接被拒绝', async (t) => {
+  const ctx = await boot(t, { connection: { requestRejection: () => 401 } })
   const res = await fetch(ctx.base + '/synapsis-api/list')
   assert.equal(res.status, 401)
   const body = await res.json()
@@ -60,8 +62,8 @@ test('不受信任的连接被拒绝', async () => {
   await ctx.close()
 })
 
-test('写操作必须声明 application/json', async () => {
-  const ctx = await boot()
+test('写操作必须声明 application/json', async (t) => {
+  const ctx = await boot(t)
   const res = await fetch(ctx.base + '/synapsis-api/save', {
     method: 'POST',
     headers: { 'content-type': 'text/plain' },
@@ -71,8 +73,8 @@ test('写操作必须声明 application/json', async () => {
   await ctx.close()
 })
 
-test('create → load → save 的完整一条链', async () => {
-  const ctx = await boot()
+test('create → load → save 的完整一条链', async (t) => {
+  const ctx = await boot(t)
   const created = await jsonPost(ctx.base + '/synapsis-api/create', { title: '接口测试' })
   assert.equal(created.status, 200)
   const payload = await created.json()
@@ -103,8 +105,8 @@ test('create → load → save 的完整一条链', async () => {
   await ctx.close()
 })
 
-test('外部改过之后再用旧 mtime 保存 → 409 且带回新 mtime', async () => {
-  const ctx = await boot()
+test('外部改过之后再用旧 mtime 保存 → 409 且带回新 mtime', async (t) => {
+  const ctx = await boot(t)
   const created = await jsonPost(ctx.base + '/synapsis-api/create', { title: '冲突' })
   const { name } = await created.json()
   const first = await (await fetch(ctx.base + '/synapsis-api/load?name=' + encodeURIComponent(name))).json()
@@ -113,7 +115,7 @@ test('外部改过之后再用旧 mtime 保存 → 409 且带回新 mtime', asyn
   await new Promise((r) => setTimeout(r, 8))
   const other = structuredClone(first.data)
   other.nodes[0].title = '别人改的'
-  await ctx.store.save(name, other)
+  await ctx.store.save(name, other, first.mtime)
 
   const res = await jsonPost(ctx.base + '/synapsis-api/save', { name, data: first.data, baseMtime: first.mtime })
   assert.equal(res.status, 409)
@@ -123,8 +125,8 @@ test('外部改过之后再用旧 mtime 保存 → 409 且带回新 mtime', asyn
   await ctx.close()
 })
 
-test('同名新建：自动起名避开重名，指定名字重复则 409', async () => {
-  const ctx = await boot()
+test('同名新建：自动起名避开重名，指定名字重复则 409', async (t) => {
+  const ctx = await boot(t)
   await jsonPost(ctx.base + '/synapsis-api/create', { title: '同名' })
   const auto = await (await jsonPost(ctx.base + '/synapsis-api/create', { title: '同名' })).json()
   assert.equal(auto.name, '同名-2.mindmap.json')
@@ -134,23 +136,23 @@ test('同名新建：自动起名避开重名，指定名字重复则 409', asyn
   await ctx.close()
 })
 
-test('/katex/* 是公开静态资源，不受鉴权影响', async () => {
-  const ctx = await boot({ connection: { requestRejection: () => 401 } })
+test('/katex/* 是公开静态资源，不受鉴权影响', async (t) => {
+  const ctx = await boot(t, { connection: { requestRejection: () => 401 } })
   const res = await fetch(ctx.base + '/synapsis-api/katex/katex.min.js')
   assert.equal(res.status, 200)
   assert.match(res.headers.get('content-type') || '', /javascript/)
   await ctx.close()
 })
 
-test('目录穿越被挡住', async () => {
-  const ctx = await boot()
+test('目录穿越被挡住', async (t) => {
+  const ctx = await boot(t)
   const res = await fetch(ctx.base + '/synapsis-api/katex/../../etc/passwd')
   assert.ok(res.status === 400 || res.status === 404, '越界请求不该成功，实际 ' + res.status)
   await ctx.close()
 })
 
-test('删除之后可以撤销：/restore 把文件捡回来', async () => {
-  const ctx = await boot()
+test('删除之后可以撤销：/restore 把文件捡回来', async (t) => {
+  const ctx = await boot(t)
   const made = await (await jsonPost(ctx.base + '/synapsis-api/create', { title: '要删的' })).json()
   const gone = await jsonPost(ctx.base + '/synapsis-api/delete', { name: made.name })
   assert.equal(gone.status, 200)
@@ -168,15 +170,15 @@ test('删除之后可以撤销：/restore 把文件捡回来', async () => {
   await ctx.close()
 })
 
-test('撤销一个没删过的名字 → 404', async () => {
-  const ctx = await boot()
+test('撤销一个没删过的名字 → 404', async (t) => {
+  const ctx = await boot(t)
   const res = await jsonPost(ctx.base + '/synapsis-api/restore', { name: '从来没删过.mindmap.json' })
   assert.equal(res.status, 404)
   await ctx.close()
 })
 
-test('/sample 可以在空库里放出示例图（且只加一份）', async () => {
-  const ctx = await boot()
+test('/sample 可以在空库里放出示例图（且只加一份）', async (t) => {
+  const ctx = await boot(t)
   const first = await (await jsonPost(ctx.base + '/synapsis-api/sample', {})).json()
   assert.match(first.name, /\.mindmap\.json$/)
   const second = await (await jsonPost(ctx.base + '/synapsis-api/sample', {})).json()
@@ -186,8 +188,8 @@ test('/sample 可以在空库里放出示例图（且只加一份）', async () 
   await ctx.close()
 })
 
-test('坏文件名与不存在的图给出对应状态码', async () => {
-  const ctx = await boot()
+test('坏文件名与不存在的图给出对应状态码', async (t) => {
+  const ctx = await boot(t)
   const bad = await fetch(ctx.base + '/synapsis-api/load?name=' + encodeURIComponent('../x.mindmap.json'))
   assert.equal(bad.status, 400)
   const missing = await fetch(ctx.base + '/synapsis-api/load?name=' + encodeURIComponent('没有这个.mindmap.json'))

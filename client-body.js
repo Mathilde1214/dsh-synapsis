@@ -144,7 +144,12 @@ function Panel() {
   const timerRef = React.useRef(0)
   const docRef = React.useRef(null)
   const mtimeRef = React.useRef(null)
-  const dirtyRef = React.useRef(false)
+  /* rev：每次编辑自增；savedRev：已经写进文件的那一版。
+     保存成功时只在自己拿到的 rev 仍是最新时才敢清脏标记——
+     否则「A 在保存途中又改出 B」会被 A 的成功回调误判成「全都是干净的」。 */
+  const revRef = React.useRef(0)
+  const savedRevRef = React.useRef(0)
+  const queueRef = React.useRef(Promise.resolve())
   const savingRef = React.useRef(null)
   /* 上次打开的是哪张图：下次进面板直接回到它，而不是列表里最旧的一张 */
   const lastRef = React.useRef(readLast())
@@ -161,51 +166,75 @@ function Panel() {
   docRef.current = doc
 
   const save = React.useCallback(async (opts) => {
-    const current = docRef.current
-    const target = nameRef.current
     const options = opts || {}
     clearTimeout(timerRef.current)
-    if (!current || !target) return true
-    if (!dirtyRef.current && !options.force) return true
-    if (savingRef.current) await savingRef.current.catch(() => {})
-    const body = JSON.stringify({ name: target, data: current, baseMtime: mtimeRef.current })
-    const sending = (async () => {
-      try {
-        const res = await fetch('/synapsis-api/save', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body,
-          keepalive: !!options.keepalive,
-        })
+    const target = nameRef.current
+    if (!target) return true
+
+    /* 同一个面板的保存排成一条队：上一次没回来就等它，避免两次写盘互相踩 */
+    const run = async () => {
+      /* 循环里每一轮都重新读 rev / doc：如果这一轮写的是 A，期间用户改成了 B，
+         写成功之后 savedRev 只到 A，于是再写一轮 B，直到磁盘追上当前编辑。 */
+      for (let guard = 0; guard < 8; guard += 1) {
+        const current = docRef.current
+        if (!current) return true
+        const rev = revRef.current
+        if (!options.force && rev === savedRevRef.current) return true
+        const body = JSON.stringify({ name: target, data: current, baseMtime: mtimeRef.current })
+        let res
+        try {
+          res = await fetch('/synapsis-api/save', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body,
+            keepalive: !!options.keepalive,
+          })
+        } catch (err) {
+          const why = err && err.message ? err.message : String(err)
+          setStatus('保存失败：' + why)
+          setToast({ text: '保存失败：' + why, kind: 'retry' })
+          return false
+        }
         const payload = await res.json().catch(() => null)
-        if (res.status === 409) {
-          setConflict({ mtime: payload && payload.mtime, name: target })
-          setStatus('文件已被外部修改')
+        if (res.status === 409 || res.status === 410 || res.status === 428) {
+          const code = payload && payload.error
+          setConflict({
+            mtime: payload && payload.mtime,
+            name: target,
+            gone: code === 'gone',
+            issues: (payload && payload.issues) || null,
+          })
+          setStatus(code === 'gone' ? '文件在别处被删掉了' : '文件已被外部修改')
           return false
         }
         if (!res.ok || (payload && payload.ok === false)) {
           const code = (payload && payload.error) || 'HTTP ' + res.status
-          throw Object.assign(new Error(ERROR_TEXT[code] || code), { code })
+          const issues = payload && payload.issues
+          const why = issues && issues.length ? ERROR_TEXT.bad_doc + '（' + issues.join('、') + '）' : ERROR_TEXT[code] || code
+          setStatus('保存失败：' + why)
+          setToast({ text: '保存失败：' + why, kind: 'retry' })
+          return false
         }
-        dirtyRef.current = false
+        if (payload && typeof payload.mtime === 'number') mtimeRef.current = payload.mtime
+        savedRevRef.current = rev
         setConflict(null)
-        if (payload && typeof payload.mtime === 'number') {
-          mtimeRef.current = payload.mtime
-        }
-        setStatus('已保存')
         setToast((prev) => (prev && prev.kind === 'retry' ? null : prev))
-        return true
-      } catch (err) {
-        const why = err && err.message ? err.message : String(err)
-        setStatus('保存失败：' + why)
-        setToast({ text: '保存失败：' + why, kind: 'retry' })
-        return false
-      } finally {
-        savingRef.current = null
+        if (revRef.current === rev) {
+          /* 这一轮写完之后没有新编辑：只有这时才敢说「已保存」 */
+          setStatus('已保存')
+          return true
+        }
       }
-    })()
-    savingRef.current = sending
-    return sending
+      /* 一直有新编辑在打断：告诉他还在写，下一次防抖会接着写 */
+      setStatus('还在保存…')
+      return true
+    }
+
+    const prev = queueRef.current
+    const next = prev.then(run, run)
+    queueRef.current = next.catch(() => {})
+    savingRef.current = next
+    return next
   }, [])
 
   const flush = React.useCallback(async () => {
@@ -245,7 +274,9 @@ function Panel() {
           } catch {
             /* 隐私模式下 localStorage 可能不可写，忽略 */
           }
-          dirtyRef.current = false
+          /* 换了一份文件：rev 归零，之前的在途保存与新文件无关 */
+          revRef.current = 0
+          savedRevRef.current = 0
           setConflict(null)
           setWarnings((loaded && loaded.warnings) || [])
           setStatus(
@@ -259,7 +290,8 @@ function Panel() {
           setDoc(null)
           docRef.current = null
           mtimeRef.current = null
-          dirtyRef.current = false
+          revRef.current = 0
+          savedRevRef.current = 0
           setWarnings([])
           setStatus('')
         }
@@ -278,6 +310,37 @@ function Panel() {
 
   React.useEffect(() => {
     openNamed('')
+  }, [openNamed])
+
+  /* 「放弃我的改动，读磁盘上的那份」——不能走 openNamed，因为它会先 flush：
+     冲突状态下 flush 一定失败，于是「重新加载」被自己的保存挡住。 */
+  const reloadFromDisk = React.useCallback(async () => {
+    const target = nameRef.current
+    setStatus('重新读取…')
+    clearTimeout(timerRef.current)
+    try {
+      await queueRef.current.catch(() => {})
+    } catch {}
+    /* 让在途/排队的保存失效：rev 追平之后它们不会再把旧内容写回去 */
+    revRef.current += 1
+    savedRevRef.current = revRef.current
+    if (!target) {
+      await openNamed('')
+      return
+    }
+    try {
+      const loaded = await jget('/synapsis-api/load?name=' + encodeURIComponent(target))
+      setDoc(loaded.data)
+      docRef.current = loaded.data
+      mtimeRef.current = typeof loaded.mtime === 'number' ? loaded.mtime : null
+      setWarnings((loaded && loaded.warnings) || [])
+      setConflict(null)
+      setStatus('已重新读取')
+    } catch (err) {
+      setConflict(null)
+      setStatus('重新读取失败：' + (err && err.message ? err.message : String(err)))
+      if (err && err.code === 'not_found') await openNamed('')
+    }
   }, [openNamed])
 
   /* 窗口获得焦点时：刷新列表，并检查当前文件是不是在别处被改过 */
@@ -303,7 +366,17 @@ function Panel() {
     (next) => {
       setDoc(next)
       docRef.current = next
-      dirtyRef.current = true
+      revRef.current += 1
+      /* 根节点改名会同步文档 title：下拉里那一行也得跟着变，
+         否则画布上写着新名字、选择器还停在旧名字 */
+      const current = nameRef.current
+      if (current) {
+        setFiles((prev) =>
+          prev.map((file) =>
+            file.name === current ? { ...file, title: next.title || file.title, nodes: next.nodes.length } : file,
+          ),
+        )
+      }
       setStatus('保存中…')
       clearTimeout(timerRef.current)
       timerRef.current = setTimeout(() => {
@@ -317,7 +390,7 @@ function Panel() {
   React.useEffect(
     () => () => {
       clearTimeout(timerRef.current)
-      save({ keepalive: true, force: dirtyRef.current })
+      save({ keepalive: true, force: revRef.current !== savedRevRef.current })
     },
     [save],
   )
@@ -352,12 +425,15 @@ function Panel() {
     const target = nameRef.current
     if (!target) return
     setArmDelete(false)
-    setStatus('删除中…')
+    setStatus('保存后删除…')
+    /* 先把还没落盘的那一次写下去，再删：否则删掉的是旧版本，撤销回来也缺最后一次编辑。
+       保存不成功就不删，别让「删除」顺手吃掉改动。 */
+    const clean = await flush()
+    if (!clean) {
+      setStatus('有改动没保存成功，先没删')
+      return
+    }
     try {
-      /* 先等正在写的保存落地，再删 —— 否则删完可能又被防抖里的 save 写回去 */
-      clearTimeout(timerRef.current)
-      if (savingRef.current) await savingRef.current.catch(() => {})
-      dirtyRef.current = false
       const res = await fetch('/synapsis-api/delete', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -373,14 +449,18 @@ function Panel() {
       setDoc(null)
       docRef.current = null
       mtimeRef.current = null
+      revRef.current = 0
+      savedRevRef.current = 0
       await openNamed('')
       setStatus('已删除')
-      /* 五秒内可以捡回来：.trash 里那份还在，撤销只是把它挪回库目录 */
+      /* 六秒内可以捡回来：.trash 里那份还在，撤销只是把它挪回库目录 */
       setToast({ text: '已删除《' + (target.replace(/\.mindmap\.json$/, '') || '这张图') + '》', name: target })
     } catch (err) {
+      /* 删除失败：改动仍然算没保存，保留脏状态与重试入口 */
       setStatus('删除失败：' + (err && err.message ? err.message : String(err)))
+      setToast({ text: '删除失败：' + (err && err.message ? err.message : String(err)), kind: 'retry' })
     }
-  }, [openNamed])
+  }, [flush, openNamed])
 
   const undoDelete = React.useCallback(async () => {
     const pending = toast
@@ -490,12 +570,52 @@ function Panel() {
       hh(
         'div',
         { style: { padding: '28px 24px', lineHeight: 1.7 } },
-        hh('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 6 } }, '读不到图库'),
+        hh('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 6 } }, '这张图读不出来'),
         hh('div', { style: { opacity: 0.7, fontSize: 13 } }, error),
         hh(
-          'button',
-          { style: { marginTop: 12, fontSize: 13, padding: '6px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
-          '重试',
+          'div',
+          { style: { opacity: 0.6, fontSize: 12.5, marginTop: 6 } },
+          '文件本身可能坏了，也可能只是权限问题。其它图还在，换一张就行。',
+        ),
+        /* 坏图别把整页堵死：这里也放一个图库选择器 */
+        files.length
+          ? hh(
+              'div',
+              { style: { marginTop: 14, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
+              hh('span', { style: { fontSize: 12.5, opacity: 0.7 } }, '换一张：'),
+              hh(
+                'select',
+                {
+                  className: 'sn-libsel',
+                  defaultValue: '',
+                  onChange: (event) => {
+                    if (event.target.value) openNamed(event.target.value)
+                  },
+                },
+                hh('option', { value: '' }, '选一张健康的图…'),
+                files.map((file) =>
+                  hh(
+                    'option',
+                    { key: file.name, value: file.name },
+                    (file.broken ? '⚠ ' : '') + file.title + (file.broken ? '（损坏）' : ''),
+                  ),
+                ),
+              ),
+            )
+          : null,
+        hh(
+          'div',
+          { style: { marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' } },
+          hh(
+            'button',
+            { style: { fontSize: 13, padding: '6px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
+            '重试',
+          ),
+          hh(
+            'button',
+            { style: { fontSize: 13, padding: '6px 12px', cursor: 'pointer' }, onClick: newMap },
+            '新建一张空白图',
+          ),
         ),
       ),
       toastBar,
@@ -642,28 +762,29 @@ function Panel() {
             boxShadow: '0 8px 24px rgba(0,0,0,.28)',
           },
         },
-        hh('span', null, '这个文件在别处被改过了'),
+        hh('span', null, conflict.gone ? '这份图在别处被删掉了' : '这个文件在别处被改过了'),
         hh(
           'button',
           {
             style: { fontSize: 12, padding: '3px 10px', cursor: 'pointer' },
-            onClick: () => openNamed(conflict.name),
+            onClick: reloadFromDisk,
           },
-          '重新加载',
+          '重新加载（放弃我的改动）',
         ),
-        hh(
-          'button',
-          {
-            style: { fontSize: 12, padding: '3px 10px', cursor: 'pointer' },
-            onClick: () => {
-              mtimeRef.current = conflict.mtime
-              setConflict(null)
-              dirtyRef.current = true
-              save({ force: true })
-            },
-          },
-          '用我这版覆盖',
-        ),
+        conflict.gone
+          ? null
+          : hh(
+              'button',
+              {
+                style: { fontSize: 12, padding: '3px 10px', cursor: 'pointer' },
+                onClick: () => {
+                  mtimeRef.current = conflict.mtime
+                  setConflict(null)
+                  save({ force: true })
+                },
+              },
+              '用我这版覆盖',
+            ),
       )
     : null
 

@@ -150,7 +150,9 @@ So: never expose the DSH port with `--host 0.0.0.0` or a port forward to the LAN
 
 Maps live in the library folder; the plugin lives in the DSH profile. `dsh plugin add`, `plugin_manager install_bundle`, and uninstall-then-reinstall all only replace the code copy under the profile. The library folder is never involved.
 
-There are two safety nets as well: before every real overwrite the previous version is copied into `.history/<map name>/` (skipped if the content is unchanged within five minutes, at most 20 kept); deleting a map moves it into `.trash/` rather than removing it.
+There are two safety nets as well: before every real overwrite the previous version is kept as `.history/<map name>/latest.json`, plus a timestamped checkpoint at most every five minutes (40 kept); deleting a map moves it into `.trash/` rather than removing it.
+
+Concurrent edits do not clobber each other either: a save carries the version you were looking at, and only succeeds if that is still what is on disk. If someone else got there first you get a conflict banner offering "reload and drop my changes" or "overwrite with mine".
 
 So upgrading is just installing the new version. Your maps stay where they are.
 
@@ -234,19 +236,23 @@ npm run dev       # node tools/dev-server.mjs, then open http://127.0.0.1:7788/
 - Multi-select isn't implemented yet. PNG/SVG export covers **the current layer**; Markdown export covers **the whole tree** (walked from the root, handy for feeding other tools).
 - Review only ranks concepts by mastery; there is no real spaced repetition yet — it doesn't remember when you last saw a concept.
 - The outline view is read-only; edits still happen on the canvas.
+- History has an API (`/history`, `/history/restore`) but no UI yet — for now it takes the model or a manual request.
+- `.trash/` only backs the six-second undo after a delete; there is no persistent recycle-bin screen.
+- UI copy is Chinese only (`locale/en.json` holds plugin metadata only).
 - Interface copy is Chinese only (`locale/en.json` holds plugin metadata, not UI strings).
 
 ## From a textbook to a map
 
-**Ask for it in the conversation** (recommended): the panel's "导入" button gives you a sentence you can send plus the library path. Drop the PDF into the conversation, send that sentence, and the model in DSH drives three tools:
+**Ask for it in the conversation** (recommended): the panel's "导入" button gives you a sentence you can send plus the library path. Drop the PDF into the conversation, send that sentence, and the model in DSH drives four tools:
 
 | Tool | What it does |
 | --- | --- |
-| `synapsis_list_maps` | lists the maps already in the library |
-| `synapsis_read_map` | reads a map's nodes and edges, for incremental edits |
+| `synapsis_list_maps` | lists the maps already in the library (title, node count, modified time, file name) |
+| `synapsis_read_map` | reads a map: an outline with each node's definition by default, full JSON with `detail:"full"` |
 | `synapsis_write_map` | writes a **new** map (validated server-side for structure and length, atomic, never overwrites an existing name) |
+| `synapsis_update_map` | updates an **existing** map: reads the current version, checks `expectMtime`, and reports a diff summary |
 
-The plugin also contributes a system-prompt section: what Synapsis is, where the library is, what a `.mindmap.json` looks like, the suggested "root → chapter → topic → concept" shape, and that `formal` takes LaTeX. So the model doesn't need you to explain the format — it can propose a chapter list, wait for your OK, then generate chapter by chapter.
+The plugin also contributes a system-prompt section: what Synapsis is, where the library is, what a `.mindmap.json` looks like, the suggested "root → chapter → topic → concept" shape, and that `formal` takes LaTeX. So the model doesn't need you to explain the format — it can propose a chapter list, wait for your OK, then generate chapter by chapter. Nothing pops up automatically; hit refresh in the panel when it is done.
 
 **Or run the offline pipeline** in this repo (for scans):
 

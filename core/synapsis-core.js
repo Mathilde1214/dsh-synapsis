@@ -1028,7 +1028,9 @@ function createMindMap(React) {
     var outlineRows = useMemo(
       function () {
         if (!data || !data.nodes) return []
-        var kids = {}
+        /* 用 Object.create(null)：父节点 id 万一是 constructor / toString 这类
+           原型上的名字，普通对象会取到继承来的函数，随后 .push 就炸了 */
+        var kids = Object.create(null)
         var rootId = ''
         for (var i = 0; i < data.nodes.length; i++) {
           var n = data.nodes[i]
@@ -1041,7 +1043,7 @@ function createMindMap(React) {
         }
         if (!rootId && data.nodes.length) rootId = data.nodes[0].id
         var rows = []
-        var seen = {}
+        var seen = Object.create(null)
         var walk = function (node, level) {
           if (!node || seen[node.id]) return
           seen[node.id] = 1
@@ -1447,6 +1449,20 @@ function createMindMap(React) {
       var onKey = function (event) {
         var A = actionsRef.current || {}
         var key = String(event.key || '').toLowerCase()
+        /* 焦点在输入框里时，快捷键要先让路：⌘Z 应该撤销刚打的字，
+           Tab 应该在字段之间跳，而不是删节点/加概念。 */
+        var t = event.target
+        var tag = t && t.tagName ? String(t.tagName).toUpperCase() : ''
+        var typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)
+        if (typing) {
+          if (event.key === 'Escape') {
+            if (searchOpen) {
+              setSearchOpen(false)
+              return
+            }
+          }
+          return
+        }
         if ((event.metaKey || event.ctrlKey) && key === 'k') {
           event.preventDefault()
           setSearchQuery('')
@@ -1589,7 +1605,7 @@ function createMindMap(React) {
       var to = pathState.toId
       if (!nodesById.get(to)) return null
       if (pathState.kind !== 'between') {
-        var seen = {}
+        var seen = Object.create(null)
         var stack = [to]
         var ids = []
         while (stack.length) {
@@ -1781,13 +1797,13 @@ function createMindMap(React) {
       lastLabelRef.current = snap.label
     }, [data, editable])
 
-    var commitData = useCallback(function (nextNodes, nextEdges, label) {
+    var commitData = useCallback(function (nextNodes, nextEdges, label, extra) {
       if (!editable || !data) return
       if (label !== 'undo') pushHistory(label || 'edit')
       props.onChange({
         version: data.version,
         id: data.id,
-        title: data.title,
+        title: extra && typeof extra.title === 'string' ? extra.title : data.title,
         subtitle: data.subtitle,
         updated: new Date().toISOString(),
         nodes: nextNodes,
@@ -1811,8 +1827,22 @@ function createMindMap(React) {
     var commitRename = useCallback(function (id, title) {
       var t = String(title == null ? '' : title).trim()
       if (!t) return
+      /* 根节点就是这张图的标题：改名时同步文档 title，否则图库下拉里
+         永远显示创建时的「未命名图」，多建几张就分不清 */
+      var isRoot = !!(layout && layout.root && layout.root.id === id)
+      if (isRoot && data && data.title !== t) {
+        commitData(
+          data.nodes.map(function (n) {
+            return n.id === id ? Object.assign({}, n, { title: t }) : n
+          }),
+          data.edges,
+          'title:' + id,
+          { title: t },
+        )
+        return
+      }
       updateNode(id, { title: t }, 'title:' + id)
-    }, [updateNode])
+    }, [commitData, data, layout, updateNode])
 
     var addChild = useCallback(function (parentId) {
       if (!editable || !data || !layout) return
@@ -1850,7 +1880,7 @@ function createMindMap(React) {
     var collectDescendants = useCallback(function (id) {
       var out = []
       var stack = [id]
-      var seen = {}
+      var seen = Object.create(null)
       seen[id] = true
       while (stack.length) {
         var cur = stack.pop()
