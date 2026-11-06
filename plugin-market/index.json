@@ -32,7 +32,7 @@
           "source": {
             "type": "git",
             "url": "https://github.com/Mathilde1214/dsh-synapsis",
-            "commit": "9ede0b7f05828075721e66d616a2edbe91066a1a"
+            "commit": "d28e59d5b9d7537112f6becef1c403076057b1e0"
           },
           "engines": {
             "dsh": ">=0.2.0 <0.3.0"
