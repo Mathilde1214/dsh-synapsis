@@ -99,6 +99,7 @@ function Panel() {
   const [error, setError] = React.useState('')
   const [conflict, setConflict] = React.useState(null)
   const [warnings, setWarnings] = React.useState([])
+  const [toast, setToast] = React.useState(null)
   const [armDelete, setArmDelete] = React.useState(false)
   const [dir, setDir] = React.useState('')
   const [darkHost, setDarkHost] = React.useState(hostDark)
@@ -145,6 +146,16 @@ function Panel() {
   const mtimeRef = React.useRef(null)
   const dirtyRef = React.useRef(false)
   const savingRef = React.useRef(null)
+  /* 上次打开的是哪张图：下次进面板直接回到它，而不是列表里最旧的一张 */
+  const lastRef = React.useRef(readLast())
+
+  function readLast() {
+    try {
+      return localStorage.getItem('synapsis.last') || ''
+    } catch {
+      return ''
+    }
+  }
 
   nameRef.current = name
   docRef.current = doc
@@ -182,9 +193,12 @@ function Panel() {
           mtimeRef.current = payload.mtime
         }
         setStatus('已保存')
+        setToast((prev) => (prev && prev.kind === 'retry' ? null : prev))
         return true
       } catch (err) {
-        setStatus('保存失败：' + (err && err.message ? err.message : String(err)))
+        const why = err && err.message ? err.message : String(err)
+        setStatus('保存失败：' + why)
+        setToast({ text: '保存失败：' + why, kind: 'retry' })
         return false
       } finally {
         savingRef.current = null
@@ -215,7 +229,9 @@ function Panel() {
         const items = (list && list.items) || []
         setFiles(items)
         setDir((list && list.dir) || '')
-        const next = pick || nameRef.current || (items[0] && items[0].name) || ''
+        /* 优先按调用方指定 → 当前 → 上次打开 → 最近修改；其中任何一个已经不在库里就顺延 */
+        const wanted = [pick, nameRef.current, lastRef.current, items[0] && items[0].name]
+        const next = wanted.find((cand) => cand && items.some((item) => item.name === cand)) || ''
         if (next && items.some((item) => item.name === next)) {
           const loaded = await jget('/synapsis-api/load?name=' + encodeURIComponent(next))
           setName(next)
@@ -223,6 +239,12 @@ function Panel() {
           setDoc(loaded.data)
           docRef.current = loaded.data
           mtimeRef.current = typeof loaded.mtime === 'number' ? loaded.mtime : null
+          lastRef.current = next
+          try {
+            localStorage.setItem('synapsis.last', next)
+          } catch {
+            /* 隐私模式下 localStorage 可能不可写，忽略 */
+          }
           dirtyRef.current = false
           setConflict(null)
           setWarnings((loaded && loaded.warnings) || [])
@@ -353,8 +375,59 @@ function Panel() {
       mtimeRef.current = null
       await openNamed('')
       setStatus('已删除')
+      /* 五秒内可以捡回来：.trash 里那份还在，撤销只是把它挪回库目录 */
+      setToast({ text: '已删除《' + (target.replace(/\.mindmap\.json$/, '') || '这张图') + '》', name: target })
     } catch (err) {
       setStatus('删除失败：' + (err && err.message ? err.message : String(err)))
+    }
+  }, [openNamed])
+
+  const undoDelete = React.useCallback(async () => {
+    const pending = toast
+    if (!pending || !pending.name) return
+    setToast(null)
+    try {
+      const res = await fetch('/synapsis-api/restore', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: pending.name }),
+      })
+      const payload = await res.json().catch(() => null)
+      if (!res.ok || (payload && payload.ok === false)) {
+        const code = (payload && payload.error) || 'HTTP ' + res.status
+        throw Object.assign(new Error(ERROR_TEXT[code] || code), { code })
+      }
+      await openNamed(payload.name)
+      setStatus('已恢复')
+    } catch (err) {
+      setStatus('恢复失败：' + (err && err.message ? err.message : String(err)))
+    }
+  }, [toast, openNamed])
+
+  /* 撤销提示自己消失；报错提示留着，等用户重试或重新加载 */
+  React.useEffect(() => {
+    if (!toast || toast.kind === 'retry') return undefined
+    const id = setTimeout(() => setToast(null), 6000)
+    return () => clearTimeout(id)
+  }, [toast])
+
+  /* 空态里的「放一张示例图」 */
+  const reseedSample = React.useCallback(async () => {
+    try {
+      const res = await fetch('/synapsis-api/sample', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      })
+      const payload = await res.json().catch(() => null)
+      if (!res.ok || (payload && payload.ok === false)) {
+        const code = (payload && payload.error) || 'HTTP ' + res.status
+        throw Object.assign(new Error(ERROR_TEXT[code] || code), { code })
+      }
+      await openNamed(payload.name)
+      setStatus('示例图已放回库目录')
+    } catch (err) {
+      setStatus('放示例失败：' + (err && err.message ? err.message : String(err)))
     }
   }, [openNamed])
 
@@ -375,22 +448,65 @@ function Panel() {
     [name],
   )
 
+  /* 删除撤销 / 保存失败重试：挂在最外层，空态和报错页也要能看见 */
+  const toastBar = toast
+    ? hh(
+        'div',
+        {
+          role: 'status',
+          style: {
+            position: 'absolute',
+            left: '50%',
+            bottom: 26,
+            transform: 'translateX(-50%)',
+            zIndex: 31,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '8px 14px',
+            borderRadius: 8,
+            fontSize: 12.5,
+            background: 'rgba(47,42,36,.92)',
+            color: '#f6f1e6',
+            boxShadow: '0 10px 26px rgba(0,0,0,.3)',
+          },
+        },
+        hh('span', null, toast.text),
+        hh(
+          'button',
+          {
+            style: { fontSize: 12, padding: '3px 10px', cursor: 'pointer' },
+            onClick: toast.kind === 'retry' ? () => save({ force: true }) : undoDelete,
+          },
+          toast.kind === 'retry' ? '重试' : '撤销',
+        ),
+      )
+    : null
+
   if (error) {
     return hh(
       'div',
-      { style: { padding: '28px 24px', lineHeight: 1.7 } },
-      hh('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 6 } }, '读不到图库'),
-      hh('div', { style: { opacity: 0.7, fontSize: 13 } }, error),
+      { style: { position: 'relative', height: '100%' } },
       hh(
-        'button',
-        { style: { marginTop: 12, fontSize: 13, padding: '6px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
-        '重试',
+        'div',
+        { style: { padding: '28px 24px', lineHeight: 1.7 } },
+        hh('div', { style: { fontSize: 15, fontWeight: 700, marginBottom: 6 } }, '读不到图库'),
+        hh('div', { style: { opacity: 0.7, fontSize: 13 } }, error),
+        hh(
+          'button',
+          { style: { marginTop: 12, fontSize: 13, padding: '6px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
+          '重试',
+        ),
       ),
+      toastBar,
     )
   }
 
   if (!doc) {
     return hh(
+      'div',
+      { style: { position: 'relative', height: '100%' } },
+      hh(
       'div',
       {
         style: {
@@ -436,7 +552,7 @@ function Panel() {
         : null,
       hh(
         'div',
-        { style: { display: 'flex', gap: 10 } },
+        { style: { display: 'flex', gap: 10, alignItems: 'center' } },
         hh(
           'button',
           { style: { fontSize: 13, padding: '6px 14px', cursor: 'pointer' }, onClick: newMap },
@@ -444,10 +560,17 @@ function Panel() {
         ),
         hh(
           'button',
+          { style: { fontSize: 12.5, padding: '5px 12px', cursor: 'pointer' }, onClick: reseedSample },
+          '放一张示例图',
+        ),
+        hh(
+          'button',
           { style: { fontSize: 12.5, padding: '5px 12px', cursor: 'pointer' }, onClick: () => openNamed('') },
           '重新读取',
         ),
       ),
+      ),
+      toastBar,
     )
   }
 
@@ -567,5 +690,6 @@ function Panel() {
       }),
     ),
     banner,
+    toastBar,
   )
 }

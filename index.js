@@ -67,6 +67,8 @@ export function apply(ctx, config) {
     katexDir: KATEX_DIR,
     connection: ctx.connection,
     log: ctx.logger || console,
+    sampleName: SAMPLE_NAME,
+    sampleFactory: sampleDoc,
   })
 
   /* 首装的小样图：库里一张图都没有时才写，写完落 .seeded，删了不会复活 */

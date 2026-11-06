@@ -55,11 +55,15 @@ async function sendFile(res, file) {
 }
 
 const store = createStore(DATA)
+const SAMPLE_NAME = '示例-从这里开始.mindmap.json'
 const api = createHandler({
   store,
   katexDir: KATEX_DIR,
   /* 联调页没有 DSH 登录票据，用一个永远放行的桩代替 connection 服务 */
   connection: { requestRejection: () => undefined },
+  sampleName: SAMPLE_NAME,
+  /* 延迟到真正需要示例时才求值：sampleDoc 定义在这个调用之后 */
+  sampleFactory: () => sampleDoc(),
 })
 
 const sampleDoc = () => ({

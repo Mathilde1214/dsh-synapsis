@@ -20,6 +20,13 @@ async function boot(options = {}) {
     katexDir,
     connection: options.connection || { requestRejection: () => undefined },
     log: { warn() {} },
+    sampleName: '示例.mindmap.json',
+    sampleFactory: () => ({
+      version: 1,
+      title: '示例',
+      nodes: [{ id: 'root', title: '示例', parent: null }],
+      edges: [],
+    }),
   })
   const server = http.createServer((req, res) => handler(req, res))
   /* 让 keep-alive 尽快过期：否则 fetch 的连接池会让进程迟迟不退出 */
@@ -139,6 +146,43 @@ test('目录穿越被挡住', async () => {
   const ctx = await boot()
   const res = await fetch(ctx.base + '/synapsis-api/katex/../../etc/passwd')
   assert.ok(res.status === 400 || res.status === 404, '越界请求不该成功，实际 ' + res.status)
+  await ctx.close()
+})
+
+test('删除之后可以撤销：/restore 把文件捡回来', async () => {
+  const ctx = await boot()
+  const made = await (await jsonPost(ctx.base + '/synapsis-api/create', { title: '要删的' })).json()
+  const gone = await jsonPost(ctx.base + '/synapsis-api/delete', { name: made.name })
+  assert.equal(gone.status, 200)
+
+  const list = await (await fetch(ctx.base + '/synapsis-api/list')).json()
+  assert.equal(list.items.length, 0)
+
+  const back = await jsonPost(ctx.base + '/synapsis-api/restore', { name: made.name })
+  assert.equal(back.status, 200)
+  const payload = await back.json()
+  assert.equal(payload.name, made.name)
+
+  const again = await (await fetch(ctx.base + '/synapsis-api/list')).json()
+  assert.deepEqual(again.items.map((x) => x.name), [made.name])
+  await ctx.close()
+})
+
+test('撤销一个没删过的名字 → 404', async () => {
+  const ctx = await boot()
+  const res = await jsonPost(ctx.base + '/synapsis-api/restore', { name: '从来没删过.mindmap.json' })
+  assert.equal(res.status, 404)
+  await ctx.close()
+})
+
+test('/sample 可以在空库里放出示例图（且只加一份）', async () => {
+  const ctx = await boot()
+  const first = await (await jsonPost(ctx.base + '/synapsis-api/sample', {})).json()
+  assert.match(first.name, /\.mindmap\.json$/)
+  const second = await (await jsonPost(ctx.base + '/synapsis-api/sample', {})).json()
+  assert.notEqual(second.name, first.name, '库里已有图时应该换个名字，不覆盖')
+  const list = await (await fetch(ctx.base + '/synapsis-api/list')).json()
+  assert.equal(list.items.length, 2)
   await ctx.close()
 })
 

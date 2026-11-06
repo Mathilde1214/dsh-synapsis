@@ -16,7 +16,8 @@ const stubReact = {
 }
 const comp = factory(stubReact)
 
-const n = (id, mastery, title = id, parent = 'root') => ({ id, title, parent, mastery })
+/* 复习池现在只收「有正文」的节点，所以夹具都带一句 definition */
+const n = (id, mastery, title = id, parent = 'root') => ({ id, title, parent, mastery, definition: '定义一句话' })
 
 test('工厂导出齐全', () => {
   assert.equal(typeof comp.MindMap, 'function')
@@ -58,12 +59,20 @@ test('复习排序：同档按标题，且结果是确定的', () => {
 
 test('复习池排除根节点和没有 id 的条目', () => {
   const pool = comp.sortReviewPool([
-    { id: 'root', title: '根', parent: null, mastery: 0 },
-    { title: '没有 id', parent: 'root', mastery: 0 },
+    { id: 'root', title: '根', parent: null, mastery: 0, definition: 'x' },
+    { title: '没有 id', parent: 'root', mastery: 0, definition: 'x' },
     null,
     n('ok', 1),
   ])
   assert.deepEqual(pool.map((x) => x.id), ['ok'])
+})
+
+test('复习池排除只有标题的层级卡（章 / 主题）', () => {
+  const bare = { id: 'ch1', title: '第1章', parent: 'root', mastery: 0 }
+  const blank = { id: 'ch2', title: '第2章', parent: 'root', mastery: 0, definition: '   ' }
+  const withFormal = { id: 'c1', title: '概念', parent: 'ch1', mastery: 0, formal: 'a \\in A' }
+  const pool = comp.sortReviewPool([bare, blank, withFormal])
+  assert.deepEqual(pool.map((x) => x.id), ['c1'], '空的章不该占复习队列')
 })
 
 test('复习池不修改传入的数组', () => {

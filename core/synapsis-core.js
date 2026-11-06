@@ -12,10 +12,23 @@ function createMindMap(React) {
 
   /* 复习排序：模糊(1) → 未读(0) → 已掌握(2)，同档按标题。
      注意 `a - b || c` 这种写法里 || 的右侧必须是完整比较结果，
-     以前写成 `a - b || c < d ? -1 : 1` 会让「只要档位不同就返回 -1」。 */
+     以前写成 `a - b || c < d ? -1 : 1` 会让「只要档位不同就返回 -1」。
+     另外只收「有正文」的节点：章、主题这些层级卡翻过来是空的，
+     排在复习队列里只是浪费一轮。 */
+  var REVIEW_FIELDS = ['definition', 'formal', 'examples', 'intuition', 'pitfalls']
+
+  function hasSomethingToSay(n) {
+    if (!n) return false
+    for (var i = 0; i < REVIEW_FIELDS.length; i++) {
+      var v = n[REVIEW_FIELDS[i]]
+      if (typeof v === 'string' && v.trim()) return true
+    }
+    return false
+  }
+
   function sortReviewPool(nodes) {
     var pool = (nodes || []).filter(function (n) {
-      return n && n.id && n.parent
+      return n && n.id && n.parent && hasSomethingToSay(n)
     })
     var rank = function (n) {
       return n.mastery === 1 ? 0 : n.mastery === 0 ? 1 : 2
@@ -312,7 +325,7 @@ function createMindMap(React) {
     'color:var(--sn-ink-2);cursor:pointer;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;}',
     '.sn-crumb[data-on="1"]{color:var(--sn-ink);font-weight:700;}',
     '.sn-sep{color:var(--sn-ink-3);font-size:11px;flex:none;}',
-    '.sn-status{font-size:11px;color:var(--sn-ink-3);white-space:nowrap;flex:none;}',
+    '.sn-status{font-size:11.5px;color:var(--sn-ink-3);white-space:nowrap;flex:none;}',
     '.sn-iconbtn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;',
     'border:1px solid transparent;background:transparent;color:var(--sn-ink-2);cursor:pointer;flex:none;}',
     '.sn-body{position:relative;display:flex;flex:1;min-height:0;}',
@@ -452,7 +465,7 @@ function createMindMap(React) {
     '.sn-oltitle{flex:none;max-width:62%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
     '.sn-olrow[data-lv="0"] .sn-oltitle{font-weight:700;font-size:calc(15px * var(--sn-fs,1));}',
     '.sn-olspacer{flex:1;min-width:8px;}',
-    '.sn-olen{font-size:11px;opacity:.5;font-style:italic;flex:none;}',
+    '.sn-olen{font-size:11px;opacity:.66;font-style:italic;flex:none;}',
     '.sn-oldot{flex:none;width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.22;}',
     '.sn-oldot[data-m="1"]{background:#c98a2e;opacity:.9;}',
     '.sn-oldot[data-m="2"]{background:#2f8f7d;opacity:.9;}',
@@ -568,11 +581,16 @@ function createMindMap(React) {
     /* 复习卡是纸，不跟宿主的 token 走：深色宿主里 --sn-ink 是浅色的，落在米黄卡上就看不见字了 */
     '.sn-root[data-theme="light"] .sn-rvcard{background:#fffaf0;color:#2f2a24;border-color:rgba(86,68,45,.24);}',
     '.sn-root[data-theme="light"] .sn-rvhead{color:#8c8071;}',
-    '.sn-root[data-theme="light"] .sn-hint{color:#8c8071;}',
-    '.sn-root[data-theme="light"] .sn-legend{color:#6b5f4e;}',
-    '.sn-root[data-theme="light"] .sn-label{color:#8c8071;}',
-    '.sn-root[data-theme="dark"] .sn-hint{color:#a1917b;}',
-    '.sn-root[data-theme="dark"] .sn-legend{color:#c3b59e;}',
+    '.sn-root[data-theme="light"] .sn-hint{color:#6f6455;}',
+    '.sn-root[data-theme="light"] .sn-legend{color:#5c5142;}',
+    '.sn-root[data-theme="light"] .sn-label{color:#6f6455;}',
+    '.sn-root[data-theme="dark"] .sn-hint{color:#c0b09a;}',
+    '.sn-root[data-theme="dark"] .sn-legend{color:#cec0a9;}',
+    '.sn-root[data-theme="dark"] .sn-label{color:#b3a48e;}',
+    /* 窄屏：先让侧栏收窄、提示条让位，顶栏允许横向滚动，别把按钮裁掉 */
+    '@media (max-width:1100px){.sn-sidebar{width:320px;} .sn-searchbtn{padding:0 7px;}}',
+    '@media (max-width:960px){.sn-sidebar{width:272px;} .sn-hint{display:none;} .sn-status{display:none;}',
+    '.sn-topbar{overflow-x:auto;scrollbar-width:none;} .sn-topbar::-webkit-scrollbar{display:none;}}',
     '.sn-root[data-theme="dark"] .sn-rvcard{background:#241f1a;color:#efe7d8;border-color:rgba(210,190,160,.24);}',
     '.sn-root[data-theme="dark"] .sn-rvhead{color:#a1917b;}',
     '.sn-root[data-theme="dark"] .sn-topbar .sn-crumb{color:#c3b59e;}',
@@ -1050,7 +1068,7 @@ function createMindMap(React) {
     var startReview = useCallback(
       function () {
         var pool = sortReviewPool(data && data.nodes ? data.nodes : [])
-        if (!pool.length) return
+        /* 一张可复习的都没有时也要把卡弹出来，告诉用户为什么是空的 */
         setReview({
           queue: pool.slice(0, 15).map(function (n) {
             return n.id
@@ -1266,7 +1284,7 @@ function createMindMap(React) {
     useEffect(function () {
       if (!layout || initDoneRef.current) return
       var el = canvasRef.current
-      if (!el || el.clientWidth < 640 || el.clientHeight < 380) return
+      if (!el || el.clientWidth < 460 || el.clientHeight < 300) return
       initDoneRef.current = true
       focusOn(props.initialFocusId || layout.root.id, false, true)
     }, [layout, focusOn])
@@ -1290,7 +1308,7 @@ function createMindMap(React) {
       var el = canvasRef.current
       if (!el) return
       var observer = new ResizeObserver(function () {
-        if (!initDoneRef.current && el.clientWidth >= 640 && el.clientHeight >= 380 && layout) {
+        if (!initDoneRef.current && el.clientWidth >= 460 && el.clientHeight >= 300 && layout) {
           initDoneRef.current = true
           focusOn(props.initialFocusId || layout.root.id, false, true)
           return
@@ -3010,6 +3028,8 @@ function createMindMap(React) {
               setCollapsed(!collapsed)
             },
             title: collapsed ? '展开详情' : '收起详情',
+            'aria-label': collapsed ? '展开详情' : '收起详情',
+            'aria-expanded': collapsed ? 'false' : 'true',
           },
           collapsed ? '‹' : '›',
         ),
@@ -3233,12 +3253,15 @@ function createMindMap(React) {
                   'div',
                   {
                     className: 'sn-rvcard',
+                    role: 'dialog',
+                    'aria-modal': 'true',
+                    'aria-label': '复习',
                     style: { transform: 'translate(' + rvPos.x + 'px,' + rvPos.y + 'px)' },
                   },
                   h(
                     'div',
                     { className: 'sn-rvhead', onPointerDown: startReviewDrag },
-                    h('span', null, done ? '复习完成' : '复习 ' + (review.i + 1) + ' / ' + total),
+                    h('span', null, total ? (done ? '复习完成' : '复习 ' + (review.i + 1) + ' / ' + total) : '复习'),
                     h(
                       'span',
                       {
@@ -3253,12 +3276,22 @@ function createMindMap(React) {
                     ? h(
                         'div',
                         null,
-                        h('div', { className: 'sn-rvtitle' }, '这一轮过完了'),
-                        h('div', { className: 'sn-rvbody' }, '掌握度已经写回文件。模糊的和没读过的会排在前头，所以下一轮会不一样。'),
+                        h(
+                          'div',
+                          { className: 'sn-rvtitle' },
+                          total ? '这一轮过完了' : '还没有可复习的概念',
+                        ),
+                        h(
+                          'div',
+                          { className: 'sn-rvbody' },
+                          total
+                            ? '掌握度已经写回文件。模糊的和没读过的会排在前头，所以下一轮会不一样。'
+                            : '复习只收「写了正文」的概念：给概念卡写点定义或例子，它就会进队列。只有标题的章、主题不算。',
+                        ),
                         h(
                           'div',
                           { className: 'sn-rvacts' },
-                          h('button', { className: 'sn-rvbtn', 'data-main': '1', onClick: startReview }, '再来一轮'),
+                          total ? h('button', { className: 'sn-rvbtn', 'data-main': '1', onClick: startReview }, '再来一轮') : null,
                           h('button', { className: 'sn-rvbtn', onClick: closeReview }, '回去看图'),
                         ),
                       )
@@ -3392,7 +3425,7 @@ function createMindMap(React) {
               { className: 'sn-searchwrap' },
               h(
                 'div',
-                { className: 'sn-dialog' },
+                { className: 'sn-dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': '删除确认' },
                 h('h4', null, '删除「' + (victim.title || '这个概念') + '」'),
                 h(
                   'p',
@@ -3459,6 +3492,9 @@ function createMindMap(React) {
               'div',
               {
                 className: 'sn-dialog sn-setdlg',
+                role: 'dialog',
+                'aria-modal': 'true',
+                'aria-label': '纸与字',
                 onClick: function (e) {
                   e.stopPropagation()
                 },
@@ -3597,6 +3633,9 @@ function createMindMap(React) {
               'div',
               {
                 className: 'sn-dialog sn-impdlg',
+                role: 'dialog',
+                'aria-modal': 'true',
+                'aria-label': '怎么把 PDF 变成图',
                 onClick: function (e) {
                   e.stopPropagation()
                 },

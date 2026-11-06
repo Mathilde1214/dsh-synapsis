@@ -27,8 +27,8 @@
       },
       "versions": [
         {
-          "version": "0.18.0",
-          "publishTimestamp": 1793943969,
+          "version": "0.19.0",
+          "publishTimestamp": 1793959959,
           "source": {
             "type": "git",
             "url": "https://github.com/Mathilde1214/dsh-synapsis",
