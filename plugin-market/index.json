@@ -31,7 +31,7 @@
           "publishTimestamp": 1794053980,
           "source": {
             "type": "npm",
-            "commit": "722ebd61ee777ae07f4b657e8baab6d75fe10e78"
+            "commit": "12a0035633fe109c58933c88732ca05009ec1a46"
           },
           "engines": {
             "dsh": ">=0.2.0 <0.3.0"
