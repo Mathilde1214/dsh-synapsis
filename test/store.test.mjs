@@ -32,23 +32,23 @@ test('新建、读回、列表（按修改时间倒序）', async () => {
   await fs.rm(dir, { recursive: true, force: true })
 })
 
-test('保存带 baseMtime：对得上就成功，对不上返回 conflict', async () => {
+test('保存带 baseToken：对得上就成功，对不上返回 conflict', async () => {
   const { store, dir } = await tempStore()
   const created = await store.create('冲突图')
   const doc = structuredClone(created.data)
   doc.nodes[0].title = '第一改'
-  const first = await store.save(created.name, doc, created.mtime)
+  const first = await store.save(created.name, doc, created.token)
   assert.ok(first.mtime > 0)
 
   const doc2 = structuredClone(doc)
   doc2.nodes[0].title = '第二改'
   await assert.rejects(
-    () => store.save(created.name, doc2, created.mtime),
+    () => store.save(created.name, doc2, created.token),
     (err) => err.code === 'conflict' && typeof err.mtime === 'number',
   )
 
   /* 拿最新的 mtime 再存就能过 */
-  const ok = await store.save(created.name, doc2, first.mtime)
+  const ok = await store.save(created.name, doc2, first.token)
   assert.ok(ok.mtime > 0)
   const back = await store.read(created.name)
   assert.equal(back.data.nodes[0].title, '第二改')
@@ -60,7 +60,7 @@ test('覆盖保存会留下 .history 快照', async () => {
   const created = await store.create('有历史')
   const doc = structuredClone(created.data)
   doc.nodes[0].title = '改一版'
-  const saved = await store.save(created.name, doc, created.mtime)
+  const saved = await store.save(created.name, doc, created.token)
   const historyDir = path.join(dir, '.history', '有历史')
   const files = await fs.readdir(historyDir)
   assert.ok(files.length >= 1, '应该有至少一份快照')
@@ -130,7 +130,7 @@ test('ensureSample 只在空库第一次写入，不会重复', async () => {
 test('保存后的文件是 2 空格缩进的 JSON，且能被再次读回', async () => {
   const { store, dir } = await tempStore()
   const created = await store.create('格式图')
-  await store.save(created.name, created.data, created.mtime)
+  await store.save(created.name, created.data, created.token)
   const text = await fs.readFile(path.join(dir, created.name), 'utf8')
   assert.ok(text.includes('\n  "version"') || text.startsWith('{\n  "version"'))
   const back = await store.read(created.name)

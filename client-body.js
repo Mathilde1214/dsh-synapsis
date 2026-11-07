@@ -144,6 +144,8 @@ function Panel() {
   const timerRef = React.useRef(0)
   const docRef = React.useRef(null)
   const mtimeRef = React.useRef(null)
+  /* 版本令牌 = 文件内容 sha1：比 mtime 精确，本地无需知道服务器时钟 */
+  const tokenRef = React.useRef(null)
   /* rev：每次编辑自增；savedRev：已经写进文件的那一版。
      保存成功时只在自己拿到的 rev 仍是最新时才敢清脏标记——
      否则「A 在保存途中又改出 B」会被 A 的成功回调误判成「全都是干净的」。 */
@@ -180,7 +182,7 @@ function Panel() {
         if (!current) return true
         const rev = revRef.current
         if (!options.force && rev === savedRevRef.current) return true
-        const body = JSON.stringify({ name: target, data: current, baseMtime: mtimeRef.current })
+        const body = JSON.stringify({ name: target, data: current, baseToken: tokenRef.current })
         let res
         try {
           res = await fetch('/synapsis-api/save', {
@@ -216,6 +218,7 @@ function Panel() {
           return false
         }
         if (payload && typeof payload.mtime === 'number') mtimeRef.current = payload.mtime
+        if (payload && typeof payload.token === 'string') tokenRef.current = payload.token
         savedRevRef.current = rev
         setConflict(null)
         setToast((prev) => (prev && prev.kind === 'retry' ? null : prev))
@@ -225,9 +228,9 @@ function Panel() {
           return true
         }
       }
-      /* 一直有新编辑在打断：告诉他还在写，下一次防抖会接着写 */
+      /* 到上限还有更新的编辑没落盘：必须如实返回 false，切图 / 删除才不会放行 */
       setStatus('还在保存…')
-      return true
+      return false
     }
 
     const prev = queueRef.current
@@ -268,6 +271,7 @@ function Panel() {
           setDoc(loaded.data)
           docRef.current = loaded.data
           mtimeRef.current = typeof loaded.mtime === 'number' ? loaded.mtime : null
+          tokenRef.current = typeof loaded.token === 'string' ? loaded.token : null
           lastRef.current = next
           try {
             localStorage.setItem('synapsis.last', next)
@@ -321,25 +325,28 @@ function Panel() {
     try {
       await queueRef.current.catch(() => {})
     } catch {}
-    /* 让在途/排队的保存失效：rev 追平之后它们不会再把旧内容写回去 */
-    revRef.current += 1
-    savedRevRef.current = revRef.current
     if (!target) {
       await openNamed('')
       return
     }
     try {
       const loaded = await jget('/synapsis-api/load?name=' + encodeURIComponent(target))
+      /* 只有真的读到新内容，才切换基线：读取失败时不能让本地改动被当成「已保存」 */
+      revRef.current += 1
+      savedRevRef.current = revRef.current
       setDoc(loaded.data)
       docRef.current = loaded.data
       mtimeRef.current = typeof loaded.mtime === 'number' ? loaded.mtime : null
+      tokenRef.current = typeof loaded.token === 'string' ? loaded.token : null
       setWarnings((loaded && loaded.warnings) || [])
       setConflict(null)
       setStatus('已重新读取')
     } catch (err) {
-      setConflict(null)
       setStatus('重新读取失败：' + (err && err.message ? err.message : String(err)))
-      if (err && err.code === 'not_found') await openNamed('')
+      if (err && err.code === 'not_found') {
+        setConflict(null)
+        await openNamed('')
+      }
     }
   }, [openNamed])
 
@@ -458,7 +465,7 @@ function Panel() {
     } catch (err) {
       /* 删除失败：改动仍然算没保存，保留脏状态与重试入口 */
       setStatus('删除失败：' + (err && err.message ? err.message : String(err)))
-      setToast({ text: '删除失败：' + (err && err.message ? err.message : String(err)), kind: 'retry' })
+      setToast({ text: '删除失败：' + (err && err.message ? err.message : String(err)), kind: 'retry', action: 'delete' })
     }
   }, [flush, openNamed])
 
@@ -556,9 +563,15 @@ function Panel() {
           'button',
           {
             style: { fontSize: 12, padding: '3px 10px', cursor: 'pointer' },
-            onClick: toast.kind === 'retry' ? () => save({ force: true }) : undoDelete,
+            /* 三种动作要分开：保存失败重试保存、删除失败重试删除、删除成功给撤销 */
+            onClick:
+              toast.action === 'delete'
+                ? () => removeMap()
+                : toast.kind === 'retry'
+                  ? () => save({ force: true })
+                  : undoDelete,
           },
-          toast.kind === 'retry' ? '重试' : '撤销',
+          toast.action === 'delete' || toast.kind === 'retry' ? '重试' : '撤销',
         ),
       )
     : null

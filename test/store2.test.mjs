@@ -26,7 +26,7 @@ test('文件被别人删掉之后再保存 → gone，不会把图写回来', as
   const made = await store.create('会被删')
   await store.trash(made.name)
   await assert.rejects(
-    () => store.save(made.name, made.data, made.mtime),
+    () => store.save(made.name, made.data, made.token),
     (err) => err.code === 'gone',
   )
   assert.equal((await store.list()).length, 0, '不能凭空复活')
@@ -38,11 +38,11 @@ test('历史：列表、读回、恢复某一版', async () => {
   const made = await store.create('有历史')
   const v1 = structuredClone(made.data)
   v1.nodes[0].title = '第一版'
-  const s1 = await store.save(made.name, v1, made.mtime)
+  const s1 = await store.save(made.name, v1, made.token)
 
   const v2 = structuredClone(v1)
   v2.nodes[0].title = '第二版'
-  const s2 = await store.save(made.name, v2, s1.mtime)
+  const s2 = await store.save(made.name, v2, s1.token)
   assert.ok(s2.mtime >= s1.mtime)
 
   const list = await store.history(made.name)
@@ -53,7 +53,7 @@ test('历史：列表、读回、恢复某一版', async () => {
   assert.ok(older.nodes.length >= 1, '快照读回来是原始文档')
 
   /* 把最老的一版恢复到文件里，之后读到的是它 */
-  await store.restoreHistory(made.name, list[list.length - 1].file, s2.mtime)
+  await store.restoreHistory(made.name, list[list.length - 1].file, s2.token)
   const back = await store.read(made.name)
   assert.notEqual(back.data.nodes[0].title, '第二版', '恢复之后不该还是最新那版')
   await fs.rm(dir, { recursive: true, force: true })
@@ -67,8 +67,8 @@ test('同一版本号并发保存：只有一个能成功', async () => {
   const b = structuredClone(made.data)
   b.nodes[0].title = 'B'
   const results = await Promise.allSettled([
-    store.save(made.name, a, made.mtime),
-    store.save(made.name, b, made.mtime),
+    store.save(made.name, a, made.token),
+    store.save(made.name, b, made.token),
   ])
   const ok = results.filter((r) => r.status === 'fulfilled').length
   const conflicts = results.filter((r) => r.status === 'rejected' && r.reason.code === 'conflict').length

@@ -36,7 +36,7 @@ async function boot(t) {
 const post = (url, body) =>
   fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
 
-test('保存不带 baseMtime → 428', async (t) => {
+test('保存不带 baseToken → 428', async (t) => {
   const ctx = await boot(t)
   const made = await (await post(ctx.base + '/synapsis-api/create', { title: '要版本' })).json()
   const res = await post(ctx.base + '/synapsis-api/save', { name: made.name, data: made.data })
@@ -52,7 +52,7 @@ test('文件被删掉之后保存 → 410 gone', async (t) => {
   const res = await post(ctx.base + '/synapsis-api/save', {
     name: made.name,
     data: loaded.data,
-    baseMtime: loaded.mtime,
+    baseToken: loaded.mtime,
   })
   assert.equal(res.status, 410)
   assert.equal((await res.json()).error, 'gone')
@@ -65,7 +65,7 @@ test('保存一个不是文档的东西 → 400 bad_doc，并说明哪里不对'
   const res = await post(ctx.base + '/synapsis-api/save', {
     name: made.name,
     data: { hello: 'world' },
-    baseMtime: loaded.mtime,
+    baseToken: loaded.mtime,
   })
   assert.equal(res.status, 400)
   const body = await res.json()
@@ -85,7 +85,7 @@ test('历史接口：能列出并恢复到旧版本', async (t) => {
   const saved = await (await post(ctx.base + '/synapsis-api/save', {
     name: made.name,
     data: v2,
-    baseMtime: first.mtime,
+    baseToken: first.token,
   })).json()
 
   const hist = await (await fetch(ctx.base + '/synapsis-api/history?name=' + encodeURIComponent(made.name))).json()
@@ -96,7 +96,7 @@ test('历史接口：能列出并恢复到旧版本', async (t) => {
   const restored = await post(ctx.base + '/synapsis-api/history/restore', {
     name: made.name,
     file: oldest.file,
-    baseMtime: saved.mtime,
+    baseToken: saved.token,
   })
   assert.equal(restored.status, 200)
   const after = await (await fetch(ctx.base + '/synapsis-api/load?name=' + encodeURIComponent(made.name))).json()

@@ -1623,7 +1623,7 @@ function createMindMap(React) {
           var list = pre.get(cur) || []
           for (var i = 0; i < list.length; i++) if (!seen[list[i]]) stack.push(list[i])
         }
-        var indeg = {}
+        var indeg = Object.create(null)
         var order = []
         for (var a = 0; a < ids.length; a++) indeg[ids[a]] = 0
         for (var b = 0; b < ids.length; b++) {
@@ -1658,9 +1658,9 @@ function createMindMap(React) {
       }
       var from = pathState.fromId
       if (!from || !nodesById.get(from)) return { kind: 'between', fromId: from || '', toId: to, ids: [], cyclic: false }
-      var prevMap = {}
+      var prevMap = Object.create(null)
       var q = [from]
-      var seen2 = {}
+      var seen2 = Object.create(null)
       seen2[from] = true
       var found = from === to
       while (q.length && !found) {
@@ -1794,7 +1794,7 @@ function createMindMap(React) {
     var pushHistory = useCallback(function (label) {
       if (!editable || !data) return
       var stack = historyRef.current
-      var snap = { nodes: data.nodes, edges: data.edges || [], label: label || 'edit' }
+      var snap = { nodes: data.nodes, edges: data.edges || [], title: data.title, label: label || 'edit' }
       var merge = stack.length && label && label.indexOf(':') > 0 && stack[stack.length - 1].label === label
       /* 合并时保留**最早**那份「改之前」的快照：连敲笔记 / 连改同一栏，⌘Z 应该一次退回改动前 */
       if (!merge) {
@@ -1822,7 +1822,8 @@ function createMindMap(React) {
       var stack = historyRef.current
       if (!stack.length) return
       var snap = stack.pop()
-      commitData(snap.nodes, snap.edges, 'undo')
+      /* 快照里也带着 title：根改名产生的 title 变化撤销时才能一起退回去 */
+      commitData(snap.nodes, snap.edges, 'undo', { title: snap.title })
     }, [commitData])
 
     var childCount = useCallback(function (id) {
@@ -1911,7 +1912,7 @@ function createMindMap(React) {
       var isRoot = !victim.parent || victim.id === layout.root.id
       if (isRoot) cascade = true
       var gone = cascade ? [id].concat(collectDescendants(id)) : [id]
-      var goneSet = {}
+      var goneSet = Object.create(null)
       for (var i = 0; i < gone.length; i++) goneSet[gone[i]] = true
       var liftTo = victim.parent || layout.root.id
       var nodes = []
@@ -2029,7 +2030,7 @@ function createMindMap(React) {
       }
 
       /* 关系边 */
-      var seenPair = {}
+      var seenPair = Object.create(null)
       for (var e = 0; e < (data.edges || []).length; e++) {
         var edge = data.edges[e]
         var a = lay.byId.get(edge.from)
@@ -3895,6 +3896,8 @@ function Panel() {
   const timerRef = React.useRef(0)
   const docRef = React.useRef(null)
   const mtimeRef = React.useRef(null)
+  /* 版本令牌 = 文件内容 sha1：比 mtime 精确，本地无需知道服务器时钟 */
+  const tokenRef = React.useRef(null)
   /* rev：每次编辑自增；savedRev：已经写进文件的那一版。
      保存成功时只在自己拿到的 rev 仍是最新时才敢清脏标记——
      否则「A 在保存途中又改出 B」会被 A 的成功回调误判成「全都是干净的」。 */
@@ -3931,7 +3934,7 @@ function Panel() {
         if (!current) return true
         const rev = revRef.current
         if (!options.force && rev === savedRevRef.current) return true
-        const body = JSON.stringify({ name: target, data: current, baseMtime: mtimeRef.current })
+        const body = JSON.stringify({ name: target, data: current, baseToken: tokenRef.current })
         let res
         try {
           res = await fetch('/synapsis-api/save', {
@@ -3967,6 +3970,7 @@ function Panel() {
           return false
         }
         if (payload && typeof payload.mtime === 'number') mtimeRef.current = payload.mtime
+        if (payload && typeof payload.token === 'string') tokenRef.current = payload.token
         savedRevRef.current = rev
         setConflict(null)
         setToast((prev) => (prev && prev.kind === 'retry' ? null : prev))
@@ -3976,9 +3980,9 @@ function Panel() {
           return true
         }
       }
-      /* 一直有新编辑在打断：告诉他还在写，下一次防抖会接着写 */
+      /* 到上限还有更新的编辑没落盘：必须如实返回 false，切图 / 删除才不会放行 */
       setStatus('还在保存…')
-      return true
+      return false
     }
 
     const prev = queueRef.current
@@ -4019,6 +4023,7 @@ function Panel() {
           setDoc(loaded.data)
           docRef.current = loaded.data
           mtimeRef.current = typeof loaded.mtime === 'number' ? loaded.mtime : null
+          tokenRef.current = typeof loaded.token === 'string' ? loaded.token : null
           lastRef.current = next
           try {
             localStorage.setItem('synapsis.last', next)
@@ -4072,25 +4077,28 @@ function Panel() {
     try {
       await queueRef.current.catch(() => {})
     } catch {}
-    /* 让在途/排队的保存失效：rev 追平之后它们不会再把旧内容写回去 */
-    revRef.current += 1
-    savedRevRef.current = revRef.current
     if (!target) {
       await openNamed('')
       return
     }
     try {
       const loaded = await jget('/synapsis-api/load?name=' + encodeURIComponent(target))
+      /* 只有真的读到新内容，才切换基线：读取失败时不能让本地改动被当成「已保存」 */
+      revRef.current += 1
+      savedRevRef.current = revRef.current
       setDoc(loaded.data)
       docRef.current = loaded.data
       mtimeRef.current = typeof loaded.mtime === 'number' ? loaded.mtime : null
+      tokenRef.current = typeof loaded.token === 'string' ? loaded.token : null
       setWarnings((loaded && loaded.warnings) || [])
       setConflict(null)
       setStatus('已重新读取')
     } catch (err) {
-      setConflict(null)
       setStatus('重新读取失败：' + (err && err.message ? err.message : String(err)))
-      if (err && err.code === 'not_found') await openNamed('')
+      if (err && err.code === 'not_found') {
+        setConflict(null)
+        await openNamed('')
+      }
     }
   }, [openNamed])
 
@@ -4209,7 +4217,7 @@ function Panel() {
     } catch (err) {
       /* 删除失败：改动仍然算没保存，保留脏状态与重试入口 */
       setStatus('删除失败：' + (err && err.message ? err.message : String(err)))
-      setToast({ text: '删除失败：' + (err && err.message ? err.message : String(err)), kind: 'retry' })
+      setToast({ text: '删除失败：' + (err && err.message ? err.message : String(err)), kind: 'retry', action: 'delete' })
     }
   }, [flush, openNamed])
 
@@ -4307,9 +4315,15 @@ function Panel() {
           'button',
           {
             style: { fontSize: 12, padding: '3px 10px', cursor: 'pointer' },
-            onClick: toast.kind === 'retry' ? () => save({ force: true }) : undoDelete,
+            /* 三种动作要分开：保存失败重试保存、删除失败重试删除、删除成功给撤销 */
+            onClick:
+              toast.action === 'delete'
+                ? () => removeMap()
+                : toast.kind === 'retry'
+                  ? () => save({ force: true })
+                  : undoDelete,
           },
-          toast.kind === 'retry' ? '重试' : '撤销',
+          toast.action === 'delete' || toast.kind === 'retry' ? '重试' : '撤销',
         ),
       )
     : null

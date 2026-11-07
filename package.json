@@ -1,7 +1,7 @@
 {
   "name": "dsh-synapsis",
-  "version": "0.20.0",
-  "description": "Synapsis 析域 —— 把讲义铺成一张能走进去的概念图（DSH Web UI 面板插件）",
+  "version": "0.21.0",
+  "description": "Synapsis 析域 —— 把讲义铺成一张能走进去的概念图（DSH 官方桌面端插件）",
   "keywords": [
     "dsh",
     "dsh-plugin",
@@ -63,7 +63,7 @@
     "dev": "node tools/dev-server.mjs",
     "test": "node --test \"test/**/*.test.mjs\"",
     "pack:check": "npm pack --dry-run",
-    "prepublishOnly": "node tools/build-plugin.mjs && git diff --exit-code client.js"
+    "prepublishOnly": "node tools/build-plugin.mjs && git diff --exit-code client.js && npm test"
   },
   "license": "MIT",
   "author": {

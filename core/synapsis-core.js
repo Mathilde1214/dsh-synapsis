@@ -1616,7 +1616,7 @@ function createMindMap(React) {
           var list = pre.get(cur) || []
           for (var i = 0; i < list.length; i++) if (!seen[list[i]]) stack.push(list[i])
         }
-        var indeg = {}
+        var indeg = Object.create(null)
         var order = []
         for (var a = 0; a < ids.length; a++) indeg[ids[a]] = 0
         for (var b = 0; b < ids.length; b++) {
@@ -1651,9 +1651,9 @@ function createMindMap(React) {
       }
       var from = pathState.fromId
       if (!from || !nodesById.get(from)) return { kind: 'between', fromId: from || '', toId: to, ids: [], cyclic: false }
-      var prevMap = {}
+      var prevMap = Object.create(null)
       var q = [from]
-      var seen2 = {}
+      var seen2 = Object.create(null)
       seen2[from] = true
       var found = from === to
       while (q.length && !found) {
@@ -1787,7 +1787,7 @@ function createMindMap(React) {
     var pushHistory = useCallback(function (label) {
       if (!editable || !data) return
       var stack = historyRef.current
-      var snap = { nodes: data.nodes, edges: data.edges || [], label: label || 'edit' }
+      var snap = { nodes: data.nodes, edges: data.edges || [], title: data.title, label: label || 'edit' }
       var merge = stack.length && label && label.indexOf(':') > 0 && stack[stack.length - 1].label === label
       /* 合并时保留**最早**那份「改之前」的快照：连敲笔记 / 连改同一栏，⌘Z 应该一次退回改动前 */
       if (!merge) {
@@ -1815,7 +1815,8 @@ function createMindMap(React) {
       var stack = historyRef.current
       if (!stack.length) return
       var snap = stack.pop()
-      commitData(snap.nodes, snap.edges, 'undo')
+      /* 快照里也带着 title：根改名产生的 title 变化撤销时才能一起退回去 */
+      commitData(snap.nodes, snap.edges, 'undo', { title: snap.title })
     }, [commitData])
 
     var childCount = useCallback(function (id) {
@@ -1904,7 +1905,7 @@ function createMindMap(React) {
       var isRoot = !victim.parent || victim.id === layout.root.id
       if (isRoot) cascade = true
       var gone = cascade ? [id].concat(collectDescendants(id)) : [id]
-      var goneSet = {}
+      var goneSet = Object.create(null)
       for (var i = 0; i < gone.length; i++) goneSet[gone[i]] = true
       var liftTo = victim.parent || layout.root.id
       var nodes = []
@@ -2022,7 +2023,7 @@ function createMindMap(React) {
       }
 
       /* 关系边 */
-      var seenPair = {}
+      var seenPair = Object.create(null)
       for (var e = 0; e < (data.edges || []).length; e++) {
         var edge = data.edges[e]
         var a = lay.byId.get(edge.from)

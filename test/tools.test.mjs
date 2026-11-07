@@ -33,7 +33,7 @@ test('模型能看见图库里有哪些图，也能读到图的正文', async ()
   const doc = structuredClone(made.data)
   doc.nodes[0].definition = '这是根节点的定义，模型必须看得到'
   doc.nodes.push({ id: 'n2', title: '子概念', parent: doc.nodes[0].id, definition: '子概念的解释' })
-  await store.save(made.name, doc, made.mtime)
+  await store.save(made.name, doc, made.token)
 
   const { ctx, tools } = fakeCtx()
   registerTools(ctx, store)
@@ -73,18 +73,23 @@ test('更新工具会先读版本，并给出改动摘要', async () => {
 
   const doc = structuredClone(loaded.data)
   doc.nodes[0].title = '改过的标题'
-  const result = await update.execute({ name: made.name, nodes: doc.nodes, edges: doc.edges })
+  const result = await update.execute({
+    name: made.name,
+    versionToken: loaded.token,
+    nodes: [{ id: doc.nodes[0].id, title: '改过的标题' }],
+  })
   const text = update.output.render({ name: made.name }, result)
     .map((b) => b.text)
     .join('\n')
   assert.match(text, /改动|更新|节点/, '要有改动摘要')
+  assert.match(text, /改标题/, '改标题必须出现在摘要里')
 
   const after = await store.read(made.name)
   assert.equal(after.data.nodes[0].title, '改过的标题')
 
   /* 版本落后 → conflict，而不是悄悄覆盖 */
   await assert.rejects(
-    () => update.execute({ name: made.name, nodes: doc.nodes, expectMtime: loaded.mtime - 1 }),
+    () => update.execute({ name: made.name, nodes: doc.nodes, versionToken: 'stale-token' }),
     (err) => err.code === 'conflict',
   )
   await fs.rm(dir, { recursive: true, force: true })

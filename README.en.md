@@ -2,7 +2,7 @@
 
 English · [中文](README.md)
 
-A concept-map plugin for the [DeepSeek Harness](https://github.com/deepseek-ai) web UI.
+A concept-map plugin for [DeepSeek Harness](https://github.com/deepseek-ai) desktop (technically a DSH web-platform plugin, so it also runs under `dsh web`).
 
 It spreads the concepts of a book into a map you can walk into. Scroll forward and a sub-branch grows into a map of its own; scroll back and it folds into the layer above. Each concept is a card: definition, formal statement, intuition, examples, pitfalls, plus what it needs first and what it leads to.
 
@@ -66,7 +66,7 @@ Click "析域" in the sidebar and the panel takes over the main area.
 
 **Drag a card to re-parent it**: drag one card onto another and it moves under it. Dropping into its own descendants is refused, since that would cut the tree in two. Dragging empty space still pans.
 
-**Export**: the top bar's "导出" gives you a PNG, an SVG, or a Markdown outline. It exports **the layer you're looking at**, not the whole book — go back to the root with the breadcrumb if you want everything. Pick SVG when you need detail: it stays sharp at any zoom. The Markdown outline suits pasting into a notes app.
+**Export**: the top bar's "导出" gives you a PNG, an SVG, or a Markdown outline. **PNG and SVG export the layer you're looking at** — go back to the root with the breadcrumb if you want the whole book. Pick SVG when you need detail: it stays sharp at any zoom. **Markdown exports the whole tree** as an indented outline, which suits pasting into a notes app.
 
 **Outline view**: "大纲" swaps the canvas for a tree of the whole map, starting at its root regardless of where the canvas is focused. Click a row to select it (the side panel follows), double-click to jump the canvas there. The triangle folds a branch; the dot on the right is its mastery. With two hundred concepts this beats zooming around.
 

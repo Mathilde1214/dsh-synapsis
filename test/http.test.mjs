@@ -94,11 +94,12 @@ test('create → load → save 的完整一条链', async (t) => {
   const saved = await jsonPost(ctx.base + '/synapsis-api/save', {
     name: payload.name,
     data: next,
-    baseMtime: doc.mtime,
+    baseToken: doc.token,
   })
   assert.equal(saved.status, 200)
   const savedBody = await saved.json()
   assert.ok(savedBody.mtime >= doc.mtime)
+  assert.equal(typeof savedBody.token, 'string')
 
   const again = await (await fetch(ctx.base + '/synapsis-api/load?name=' + encodeURIComponent(payload.name))).json()
   assert.equal(again.data.nodes[0].title, '改个名')
@@ -115,9 +116,9 @@ test('外部改过之后再用旧 mtime 保存 → 409 且带回新 mtime', asyn
   await new Promise((r) => setTimeout(r, 8))
   const other = structuredClone(first.data)
   other.nodes[0].title = '别人改的'
-  await ctx.store.save(name, other, first.mtime)
+  await ctx.store.save(name, other, first.token)
 
-  const res = await jsonPost(ctx.base + '/synapsis-api/save', { name, data: first.data, baseMtime: first.mtime })
+  const res = await jsonPost(ctx.base + '/synapsis-api/save', { name, data: first.data, baseToken: first.token })
   assert.equal(res.status, 409)
   const body = await res.json()
   assert.equal(body.error, 'conflict')
