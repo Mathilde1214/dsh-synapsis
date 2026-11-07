@@ -201,6 +201,8 @@ function Panel() {
         if (res.status === 409 || res.status === 410 || res.status === 428) {
           const code = payload && payload.error
           setConflict({
+            /* 覆盖按钮必须拿「磁盘上那一版」的令牌，不能拿本地旧的 */
+            token: payload && typeof payload.token === 'string' ? payload.token : null,
             mtime: payload && payload.mtime,
             name: target,
             gone: code === 'gone',
@@ -344,23 +346,31 @@ function Panel() {
     } catch (err) {
       setStatus('重新读取失败：' + (err && err.message ? err.message : String(err)))
       if (err && err.code === 'not_found') {
-        setConflict(null)
-        await openNamed('')
+        /* 文件已经没了：别硬切走（flush 会再撞一次 gone），
+           把横幅留在那儿，让用户选「另存为新图」 */
+        setConflict({ token: null, name: target, gone: true, mtime: null })
+        setStatus('文件在别处被删掉了，可以另存为新图')
       }
     }
   }, [openNamed])
 
-  /* 窗口获得焦点时：刷新列表，并检查当前文件是不是在别处被改过 */
+  /* 窗口获得焦点时：刷新列表，并检查当前文件是不是在别处被改过。
+     判断依据是内容令牌（list 只给 mtime，所以这里单独读一次当前文件），
+     不再拿修改时间做近似比较——同一毫秒的两次写入会漏判。 */
   React.useEffect(() => {
     const onFocus = () => {
-      if (!docRef.current) return
+      const current = nameRef.current
+      if (!docRef.current || !current) return
       jget('/synapsis-api/list')
         .then((list) => {
-          const items = (list && list.items) || []
-          setFiles(items)
-          const mine = items.find((item) => item.name === nameRef.current)
-          if (mine && mtimeRef.current && mine.mtime > mtimeRef.current + 1.5) {
-            setConflict({ mtime: mine.mtime, name: mine.name })
+          setFiles((list && list.items) || [])
+          return jget('/synapsis-api/load?name=' + encodeURIComponent(current))
+        })
+        .then((loaded) => {
+          if (!loaded || !loaded.token) return
+          if (tokenRef.current && loaded.token !== tokenRef.current) {
+            setConflict({ token: loaded.token, mtime: loaded.mtime, name: current, gone: false })
+            setStatus('文件已被外部修改')
           }
         })
         .catch(() => {})
@@ -403,6 +413,45 @@ function Panel() {
   )
 
   /* 新建一张空白图：根节点就叫「未命名图」，进去按 F2 改 */
+  /* 文件在别处被删了、本地还有改动时用：把手上这版另存成一张新图，
+     否则用户会被卡在「切不走也存不回」的死角里。
+     注意不能走 openNamed——它会先 flush，而那正好会再撞一次 gone。 */
+  const saveAsCopy = React.useCallback(async () => {
+    const doc = docRef.current
+    if (!doc) return
+    const base = (nameRef.current || '未命名图').replace(/\.mindmap\.json$/, '')
+    const copy = { ...doc, title: (doc.title || base) + '（副本）' }
+    setStatus('另存中…')
+    try {
+      const res = await fetch('/synapsis-api/create', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: copy.title, data: copy }),
+      })
+      const payload = await res.json().catch(() => null)
+      if (!res.ok || (payload && payload.ok === false)) {
+        const code = (payload && payload.error) || 'HTTP ' + res.status
+        throw Object.assign(new Error(ERROR_TEXT[code] || code), { code })
+      }
+      const loaded = await jget('/synapsis-api/load?name=' + encodeURIComponent(payload.name))
+      setName(payload.name)
+      nameRef.current = payload.name
+      lastRef.current = payload.name
+      setDoc(loaded.data)
+      docRef.current = loaded.data
+      mtimeRef.current = typeof loaded.mtime === 'number' ? loaded.mtime : null
+      tokenRef.current = typeof loaded.token === 'string' ? loaded.token : null
+      revRef.current = 0
+      savedRevRef.current = 0
+      setConflict(null)
+      setWarnings((loaded && loaded.warnings) || [])
+      await openNamed(payload.name)
+      setStatus('已另存为「' + payload.name + '」')
+    } catch (err) {
+      setStatus('另存失败：' + (err && err.message ? err.message : String(err)))
+    }
+  }, [openNamed])
+
   const newMap = React.useCallback(async () => {
     const clean = await flush()
     if (!clean) {
@@ -707,7 +756,7 @@ function Panel() {
     )
   }
 
-  const titleCount = {}
+  const titleCount = Object.create(null)
   files.forEach((file) => {
     titleCount[file.title] = (titleCount[file.title] || 0) + 1
   })
@@ -785,13 +834,22 @@ function Panel() {
           '重新加载（放弃我的改动）',
         ),
         conflict.gone
-          ? null
+          ? hh(
+              'button',
+              {
+                style: { fontSize: 12, padding: '3px 10px', cursor: 'pointer' },
+                onClick: () => saveAsCopy(),
+              },
+              '另存为新图',
+            )
           : hh(
               'button',
               {
                 style: { fontSize: 12, padding: '3px 10px', cursor: 'pointer' },
                 onClick: () => {
-                  mtimeRef.current = conflict.mtime
+                  /* 覆盖的是「磁盘上那一版」：用 409 里带回来的令牌，而不是本地旧令牌 */
+                  if (conflict.token) tokenRef.current = conflict.token
+                  if (typeof conflict.mtime === 'number') mtimeRef.current = conflict.mtime
                   setConflict(null)
                   save({ force: true })
                 },

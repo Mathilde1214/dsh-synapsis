@@ -16,8 +16,8 @@
         "zh": "析域 · Synapsis"
       },
       "description": {
-        "en": "A concept map panel: zoom into a branch and it becomes the new root; each concept carries definition, formal statement (LaTeX), intuition, examples, pitfalls, prerequisites, and the source page of the lecture notes.",
-        "zh": "概念地图面板：滚轮推进子分支，它就成为新的主图根；每个概念带定义、形式化（LaTeX）、直觉、例子、易错点、前置与讲义原文出处。"
+        "en": "Concept maps you can walk into — a DSH desktop plugin.",
+        "zh": "能把讲义铺成一张走进去的概念图 —— DSH 桌面端插件。"
       },
       "icon": "icons/synapsis.svg",
       "author": "Mathilde1214",

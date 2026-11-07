@@ -8,27 +8,27 @@
 
 ## 效果图
 
-![总览：一本讲义的全部章节](docs/screenshots/overview.png)
+![总览：一本讲义的全部章节](https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/docs/screenshots/overview.png)
 
 *总览层。十章铺成一圈，再外面是章节里的主题点。*
 
-![概念卡：夜间纸](docs/screenshots/concept-dark.png)
+![概念卡：夜间纸](https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/docs/screenshots/concept-dark.png)
 
 *点一个概念，右侧展开卡片。公式是 KaTeX 排的，暗色主题下是「夜间纸」。*
 
-![正文就地编辑](docs/screenshots/field-edit.png)
+![正文就地编辑](https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/docs/screenshots/field-edit.png)
 
 *双击任意一栏就能改。形式化那栏给出 LaTeX 源码，下面实时预览。*
 
-![学习路径](docs/screenshots/learning-path.png)
+![学习路径](https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/docs/screenshots/learning-path.png)
 
 *「学它之前要先会什么」——按硬前置排成一条链，链上的卡片描金边，其余让路。*
 
-![搜索](docs/screenshots/search.png)
+![搜索](https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/docs/screenshots/search.png)
 
 *⌘K 搜概念名、定义里的词、甚至公式的写法。*
 
-![关系边](docs/screenshots/edge.png)
+![关系边](https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/docs/screenshots/edge.png)
 
 *点一条关系线即可选中，顶部出现换类型和删除的按钮。*
 
@@ -102,6 +102,20 @@
 3. 用 Desktop 自带的那份 CLI 装：`<安装目录>/resources/runtime/cli/bin/dsh`（Windows 是 `dsh.cmd`）。用 npm 全局装的 `dsh` 改不到 Desktop 的 profile。
 
 如果不想碰命令行，Desktop 的「插件」页面里也能装，效果一样。
+
+**从 npm 装（发布之后）**
+
+```sh
+dsh plugin --profile desktop add dsh-synapsis
+```
+
+**怎么更新**
+
+- 用 GitHub 装的：把上面命令里的提交哈希换成新的，重跑一次即可（不钉哈希就是装 main 的最新一版）。
+- 用 npm 装的：`dsh plugin --profile desktop add dsh-synapsis@<版本>`，或先 `remove` 再 `add`。
+- 用 tarball 装的：重新打包、重新 `add`。
+- 更新只替换 `node_modules` 里的插件代码，**库目录里的图一张都不会动**（见下面的「升级不会动你的图」）。
+- 更新完刷新宿主页面（桌面端 `Ctrl/Cmd+R`）。
 
 **从 GitHub 装（推荐，不需要任何构建）**
 
@@ -253,7 +267,7 @@ npm run dev       # node tools/dev-server.mjs，然后开 http://127.0.0.1:7788/
 | `synapsis_list_maps` | 看库目录里已经有哪些图（标题、节点数、修改时间、文件名） |
 | `synapsis_read_map` | 读一份图：默认给层级大纲 + 每个节点的定义，`detail:"full"` 给完整 JSON |
 | `synapsis_write_map` | 写一份**新**图（带结构与长度的服务端校验，原子落盘，不会覆盖同名图） |
-| `synapsis_update_map` | 改一份**已有**图：先读当前版本、带 `expectMtime` 校验，写入后给改动摘要 |
+| `synapsis_update_map` | **局部**改一份已有图：只传要改的节点与字段（`versionToken` 必填），没传的关系/笔记/掌握度保持原样，写入后给改动摘要与新令牌 |
 
 插件还会往系统提示里加一段说明：析域是什么、库目录在哪、`.mindmap.json` 长什么样、建议按「根 → 章 → 主题 → 概念」三层组织、`formal` 里可以直接写 LaTeX。所以模型不需要你解释格式，先给章节清单、你确认后再逐章生成就行。写完不会自动弹出面板，回面板点一下刷新即可。
 

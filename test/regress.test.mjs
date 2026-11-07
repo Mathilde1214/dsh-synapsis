@@ -163,3 +163,81 @@ function fakeCtx() {
     },
   }
 }
+
+test('版本号必须是整数：true / null / "1" 都算畸形', () => {
+  const base = { ...blank('版本'), nodes: [{ id: 'root', title: 'r', parent: null }] }
+  for (const bad of [true, null, '1', 1.5]) {
+    assert.throws(
+      () => assertDoc({ ...base, version: bad }),
+      (err) => err.code === 'bad_doc' && err.issues.includes('version-invalid'),
+      `version=${String(bad)} 应该被拒`,
+    )
+  }
+  const { doc, warnings } = normalizeDoc({ ...base, version: true })
+  assert.equal(doc.version, 1, '畸形版本号按 1 存')
+  assert.ok(warnings.includes('version-invalid'), '并给出提醒')
+})
+
+test('历史里时间戳相同时，latest.json 排第一', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'syn-hist-'))
+  const store = createStore(dir)
+  const made = await store.createFrom({ ...blank('历史'), nodes: [{ id: 'root', title: 'r', parent: null }] }, '历史.mindmap.json')
+  const token1 = made.token
+  const doc = (await store.read(made.name)).data
+  const saved = await store.save(made.name, { ...doc, title: '历史 v2' }, token1)
+  /* 再写一次，产生多个检查点/快照文件 */
+  await store.save(made.name, { ...doc, title: '历史 v3' }, saved.token)
+
+  const historyDir = path.join(dir, '.history', '历史')
+  const files = (await fs.readdir(historyDir)).filter((f) => f.endsWith('.json'))
+  const same = new Date('2026-01-01T00:00:00Z')
+  for (const f of files) await fs.utimes(path.join(historyDir, f), same, same)
+
+  const list = await store.history(made.name)
+  assert.ok(list.length >= 2, '至少两个历史版本')
+  assert.equal(list[0].latest, true, '同一毫秒时 latest.json 必须排第一')
+  await fs.rm(dir, { recursive: true, force: true })
+})
+
+test('409 里带回的令牌可以直接用来覆盖', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'syn-cover-'))
+  const store = createStore(dir)
+  const made = await store.createFrom({ ...blank('覆盖'), nodes: [{ id: 'root', title: 'r', parent: null }] }, '覆盖.mindmap.json')
+  const firstToken = made.token
+  const doc = (await store.read(made.name)).data
+
+  /* 别处先改一次 */
+  await store.save(made.name, { ...doc, title: '别处改的' }, firstToken)
+
+  /* 本地拿着旧令牌去写：应当 409，并带回磁盘上那一版的令牌 */
+  let conflicted = null
+  try {
+    await store.save(made.name, { ...doc, title: '我的版本' }, firstToken)
+  } catch (err) {
+    conflicted = err
+  }
+  assert.equal(conflicted.code, 'conflict')
+  assert.equal(typeof conflicted.token, 'string')
+
+  /* 用 409 里的令牌再写：这一次必须成功 */
+  const ok = await store.save(made.name, { ...doc, title: '我的版本' }, conflicted.token)
+  assert.equal(typeof ok.token, 'string')
+  const after = await store.read(made.name)
+  assert.equal(after.data.title, '我的版本')
+  await fs.rm(dir, { recursive: true, force: true })
+})
+
+test('createFrom 用同一份内容另存不会覆盖已有文件', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'syn-copy-'))
+  const store = createStore(dir)
+  const doc = { ...blank('副本'), nodes: [{ id: 'root', title: 'r', parent: null }] }
+  const a = await store.createFrom(doc, '副本.mindmap.json')
+  /* 指定了文件名就不覆盖：直接报 exists，让调用方自己决定改名 */
+  await assert.rejects(() => store.createFrom(doc, '副本.mindmap.json'), (err) => err.code === 'exists')
+  /* 不给文件名时自动让位 */
+  const b = await store.createFrom({ ...doc, title: '副本' })
+  const c = await store.createFrom({ ...doc, title: '副本' })
+  assert.notEqual(b.name, c.name, '重名时自动换名字，不覆盖')
+  assert.equal(a.name, '副本.mindmap.json')
+  await fs.rm(dir, { recursive: true, force: true })
+})

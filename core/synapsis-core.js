@@ -1017,7 +1017,8 @@ function createMindMap(React) {
     /* ---- 大纲视图 ---- */
     var toggleFold = useCallback(function (id) {
       setFolds(function (prev) {
-        var next = Object.assign({}, prev)
+        /* 无原型对象：id 叫 constructor / toString 时才不会被当成「已折叠」 */
+        var next = Object.assign(Object.create(null), prev)
         if (next[id]) delete next[id]
         else next[id] = 1
         return next
@@ -1741,7 +1742,8 @@ function createMindMap(React) {
     var updateNode = useCallback(function (id, patch, label) {
       if (!editable || !data) return
       pushHistory(label || 'edit')
-      var next = {
+      /* 同样整份展开：节点与文档上的额外字段保留下来 */
+      var next = Object.assign({}, data, {
         version: data.version,
         id: data.id,
         title: data.title,
@@ -1755,7 +1757,7 @@ function createMindMap(React) {
           return merged
         }),
         edges: data.edges || [],
-      }
+      })
       props.onChange(next)
     }, [data, editable, props, pushHistory])
 
@@ -1800,7 +1802,8 @@ function createMindMap(React) {
     var commitData = useCallback(function (nextNodes, nextEdges, label, extra) {
       if (!editable || !data) return
       if (label !== 'undo') pushHistory(label || 'edit')
-      props.onChange({
+      /* 用整份文档展开再覆盖：别的工具/更新版本写进来的额外字段不该被这次编辑抹掉 */
+      props.onChange(Object.assign({}, data, {
         version: data.version,
         id: data.id,
         title: extra && typeof extra.title === 'string' ? extra.title : data.title,
@@ -1808,7 +1811,7 @@ function createMindMap(React) {
         updated: new Date().toISOString(),
         nodes: nextNodes,
         edges: nextEdges || data.edges || [],
-      })
+      }))
     }, [data, editable, props, pushHistory])
 
     var undo = useCallback(function () {

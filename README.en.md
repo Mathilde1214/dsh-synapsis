@@ -8,27 +8,27 @@ It spreads the concepts of a book into a map you can walk into. Scroll forward a
 
 ## Screenshots
 
-![Overview: every chapter of a textbook](docs/screenshots/overview.png)
+![Overview: every chapter of a textbook](https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/docs/screenshots/overview.png)
 
 *The overview layer. Ten chapters around the root, with topic dots further out.*
 
-![Concept card in night paper](docs/screenshots/concept-dark.png)
+![Concept card in night paper](https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/docs/screenshots/concept-dark.png)
 
 *Select a concept and the card opens on the right. Formulas are typeset with KaTeX; dark mode becomes "night paper".*
 
-![Editing a field in place](docs/screenshots/field-edit.png)
+![Editing a field in place](https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/docs/screenshots/field-edit.png)
 
 *Double-click any field to edit it. The formal field shows the LaTeX source with a live preview underneath.*
 
-![Learning path](docs/screenshots/learning-path.png)
+![Learning path](https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/docs/screenshots/learning-path.png)
 
 *"What do I need before this?" — the hard prerequisites in order, gold-ringed, everything else dimmed.*
 
-![Search](docs/screenshots/search.png)
+![Search](https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/docs/screenshots/search.png)
 
 *⌘K searches titles, English names, body text and notes.*
 
-![Relation edge selected](docs/screenshots/edge.png)
+![Relation edge selected](https://raw.githubusercontent.com/Mathilde1214/dsh-synapsis/main/docs/screenshots/edge.png)
 
 *Click a relation line to select it; a small toolbar appears for changing its type or deleting it.*
 
@@ -250,7 +250,7 @@ npm run dev       # node tools/dev-server.mjs, then open http://127.0.0.1:7788/
 | `synapsis_list_maps` | lists the maps already in the library (title, node count, modified time, file name) |
 | `synapsis_read_map` | reads a map: an outline with each node's definition by default, full JSON with `detail:"full"` |
 | `synapsis_write_map` | writes a **new** map (validated server-side for structure and length, atomic, never overwrites an existing name) |
-| `synapsis_update_map` | updates an **existing** map: reads the current version, checks `expectMtime`, and reports a diff summary |
+| `synapsis_update_map` | **Partially** update an existing map: send only the nodes and fields you want to change (with `versionToken`); relations, notes and mastery you did not send stay as they are. Returns a change summary and a fresh token |
 
 The plugin also contributes a system-prompt section: what Synapsis is, where the library is, what a `.mindmap.json` looks like, the suggested "root → chapter → topic → concept" shape, and that `formal` takes LaTeX. So the model doesn't need you to explain the format — it can propose a chapter list, wait for your OK, then generate chapter by chapter. Nothing pops up automatically; hit refresh in the panel when it is done.
 
