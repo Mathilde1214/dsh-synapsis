@@ -127,6 +127,14 @@ test('只复习某一支时按 id 集合过滤', () => {
   assert.equal(comp.sortReviewPool(nodes).length, 3)
 })
 
+test('传进来的不是 Set 时按整张图处理，不当成空范围', () => {
+  const nodes = [n('a', 1), n('b', 0)]
+  /* 顶栏按钮曾经直接把点击事件当 scopeId 传进来，结果一个都收不到 */
+  assert.equal(comp.sortReviewPool(nodes, { type: 'click' }).length, 2)
+  assert.equal(comp.sortReviewPool(nodes, []).length, 2)
+  assert.equal(comp.sortReviewPool(nodes, new Set()).length, 2)
+})
+
 test('排序不会改动调用方传进来的数组', () => {
   const input = [n('b', 1), n('a', 1)]
   const snapshot = input.map((x) => x.id)

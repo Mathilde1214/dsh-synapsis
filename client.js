@@ -52,7 +52,9 @@ function createMindMap(React) {
   }
 
   function sortReviewPool(nodes, scopeIds) {
-    var inScope = scopeIds && scopeIds.size ? scopeIds : null
+    /* 只认真正的 Set：传进来别的东西（事件对象之类）时按「整张图」处理，
+       否则会拿一个空集合去过滤，结果一张都收不到。 */
+    var inScope = scopeIds instanceof Set && scopeIds.size ? scopeIds : null
     var pool = (nodes || []).filter(function (n) {
       if (!n || !n.id || !n.parent) return false
       if (inScope && !inScope.has(n.id)) return false
@@ -1112,10 +1114,13 @@ function createMindMap(React) {
     /* ---- 复习：先收「模糊」的，再收「复习过还是没印象」的，然后「没学过」的，最后已掌握 ---- */
     var startReview = useCallback(
       function (scopeId) {
+        /* 这个函数被直接挂在按钮上过，React 会把点击事件当第一个参数传进来；
+           不是字符串就当成「整张图」，否则范围会变成一个空集合、一张都收不到。 */
+        var scopeKey = typeof scopeId === 'string' && scopeId ? scopeId : null
         var scope = null
-        if (scopeId) {
-          scope = new Set([scopeId])
-          var kids = collectDescendants(scopeId)
+        if (scopeKey) {
+          scope = new Set([scopeKey])
+          var kids = collectDescendants(scopeKey)
           for (var k = 0; k < kids.length; k++) scope.add(kids[k])
         }
         var pool = sortReviewPool(data && data.nodes ? data.nodes : [], scope)
@@ -1125,7 +1130,7 @@ function createMindMap(React) {
             return n.id
           }),
           graded: {},
-          scopeId: scopeId || null,
+          scopeId: scopeKey,
           i: 0,
           shown: false,
         })
@@ -3097,7 +3102,9 @@ function createMindMap(React) {
           'button',
           {
             className: 'sn-searchbtn',
-            onClick: startReview,
+            onClick: function () {
+              startReview()
+            },
             title: '按掌握度抽一批概念过一遍（模糊的排前面）',
           },
           '复习',
