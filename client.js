@@ -596,7 +596,7 @@ function createMindMap(React) {
     '.sn-root[data-theme="dark"] .sn-label{color:#b3a48e;}',
     /* 窄屏：先让侧栏收窄、提示条让位，顶栏允许横向滚动，别把按钮裁掉 */
     '@media (max-width:1100px){.sn-sidebar{width:320px;} .sn-searchbtn{padding:0 7px;}}',
-    '@media (max-width:960px){.sn-sidebar{width:272px;} .sn-hint{display:none;} .sn-status{display:none;}',
+    '@media (max-width:960px){.sn-sidebar{width:272px;} .sn-hint{display:none;}',
     '.sn-topbar{overflow-x:auto;scrollbar-width:none;} .sn-topbar::-webkit-scrollbar{display:none;}}',
     '.sn-root[data-theme="dark"] .sn-rvcard{background:#241f1a;color:#efe7d8;border-color:rgba(210,190,160,.24);}',
     '.sn-root[data-theme="dark"] .sn-rvhead{color:#a1917b;}',
@@ -3684,7 +3684,7 @@ function createMindMap(React) {
                 null,
                 '插件自己不读 PDF：它只认 .mindmap.json。真正干活的是 DSH 里的对话——由它调本机的 OCR 和模型，把讲义拆成概念，然后直接写进这个库目录。',
               ),
-              h('p', { className: 'sn-implabel' }, '① 把 PDF 拖进左边的对话窗口'),
+              h('p', { className: 'sn-implabel' }, '① 先切回聊天（按 ⌘\\ 收起面板），把 PDF 拖进对话'),
               h('p', { className: 'sn-implabel' }, '② 把下面这句话发给它'),
               h(
                 'pre',
@@ -4476,13 +4476,13 @@ function Panel() {
         onChange: (event) => openNamed(event.target.value),
         title: '切换图',
       },
-      files.map((file) =>
-        hh(
-          'option',
-          { key: file.name, value: file.name },
-          titleCount[file.title] > 1 ? file.title + ' · ' + file.name.replace(/\.mindmap\.json$/, '') : file.title,
-        ),
-      ),
+      files.map((file) => {
+        /* 下拉里就把「多少节点、什么时候改的、文件坏没坏」带上，省得切进去才发现 */
+        const when = file.mtime ? new Date(file.mtime).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) : ''
+        const marks = [file.broken ? '⚠ 读不出来' : '', file.nodes ? file.nodes + ' 个概念' : '', when].filter(Boolean).join(' · ')
+        const label = titleCount[file.title] > 1 ? file.title + ' · ' + file.name.replace(/\.mindmap\.json$/, '') : file.title
+        return hh('option', { key: file.name, value: file.name }, marks ? label + '（' + marks + '）' : label)
+      }),
     ),
     hh(
       'button',

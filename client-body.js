@@ -724,13 +724,13 @@ function Panel() {
         onChange: (event) => openNamed(event.target.value),
         title: '切换图',
       },
-      files.map((file) =>
-        hh(
-          'option',
-          { key: file.name, value: file.name },
-          titleCount[file.title] > 1 ? file.title + ' · ' + file.name.replace(/\.mindmap\.json$/, '') : file.title,
-        ),
-      ),
+      files.map((file) => {
+        /* 下拉里就把「多少节点、什么时候改的、文件坏没坏」带上，省得切进去才发现 */
+        const when = file.mtime ? new Date(file.mtime).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) : ''
+        const marks = [file.broken ? '⚠ 读不出来' : '', file.nodes ? file.nodes + ' 个概念' : '', when].filter(Boolean).join(' · ')
+        const label = titleCount[file.title] > 1 ? file.title + ' · ' + file.name.replace(/\.mindmap\.json$/, '') : file.title
+        return hh('option', { key: file.name, value: file.name }, marks ? label + '（' + marks + '）' : label)
+      }),
     ),
     hh(
       'button',
