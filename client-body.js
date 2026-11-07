@@ -707,7 +707,7 @@ function Panel() {
       dir
         ? hh(
             'div',
-            { style: { maxWidth: 620, textAlign: 'center', opacity: 0.8, lineHeight: 1.7 } },
+            { style: { maxWidth: 620, textAlign: 'center', opacity: 0.8, lineHeight: 1.7, order: 3 } },
             '库目录：',
             hh(
               'code',
@@ -734,7 +734,7 @@ function Panel() {
         : null,
       hh(
         'div',
-        { style: { display: 'flex', gap: 10, alignItems: 'center' } },
+        { style: { display: 'flex', gap: 10, alignItems: 'center', order: 2 } },
         hh(
           'button',
           { style: { fontSize: 13, padding: '6px 14px', cursor: 'pointer' }, onClick: newMap },

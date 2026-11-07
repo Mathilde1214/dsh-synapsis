@@ -26,12 +26,23 @@ function createMindMap(React) {
     return false
   }
 
-  function sortReviewPool(nodes) {
+  /* 复习排序：先「有点模糊」，再「复习过还是没印象」，再「压根没学过」，最后「会了」。
+     「没学过」与「复习后没印象」不再混成同一档：前者 mastery 还是 0 且从没评过，
+     后者 mastery 是 0 但 lastReviewed 有值（点过「没印象」）。 */
+  function sortReviewPool(nodes, scopeIds) {
+    var inScope = scopeIds && scopeIds.size ? scopeIds : null
     var pool = (nodes || []).filter(function (n) {
-      return n && n.id && n.parent && hasSomethingToSay(n)
+      if (!n || !n.id || !n.parent) return false
+      if (inScope && !inScope.has(n.id)) return false
+      return hasSomethingToSay(n)
     })
+    var reviewed = function (n) {
+      return typeof n.lastReviewed === 'string' && n.lastReviewed.length > 0
+    }
     var rank = function (n) {
-      return n.mastery === 1 ? 0 : n.mastery === 0 ? 1 : 2
+      if (n.mastery === 1) return 0
+      if (n.mastery === 0) return reviewed(n) ? 1 : 2
+      return 3
     }
     return pool.sort(function (a, b) {
       return rank(a) - rank(b) || String(a.title || '').localeCompare(String(b.title || ''), 'zh')
@@ -324,7 +335,7 @@ function createMindMap(React) {
     '.sn-crumb{font:inherit;font-size:13px;line-height:1;padding:5px 7px;border-radius:6px;border:0;background:transparent;',
     'color:var(--sn-ink-2);cursor:pointer;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;}',
     '.sn-crumb[data-on="1"]{color:var(--sn-ink);font-weight:700;}',
-    '.sn-sep{color:var(--sn-ink-3);font-size:11px;flex:none;}',
+    '.sn-sep{color:var(--sn-ink-3);font-size:12px;flex:none;}',
     '.sn-status{font-size:11.5px;color:var(--sn-ink-3);white-space:nowrap;flex:none;}',
     '.sn-iconbtn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;',
     'border:1px solid transparent;background:transparent;color:var(--sn-ink-2);cursor:pointer;flex:none;}',
@@ -368,7 +379,7 @@ function createMindMap(React) {
     '.sn-side-title{font-size:calc(21px * var(--sn-fs,1));font-weight:700;line-height:1.25;flex:1;min-width:0;}',
     '.sn-side-en{font-size:12px;font-style:italic;opacity:.55;margin-top:2px;}',
     '.sn-field{margin-top:14px;}',
-    '.sn-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--sn-ink-3);',
+    '.sn-label{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--sn-ink-3);',
     'margin-bottom:4px;display:flex;align-items:center;gap:6px;}',
     '.sn-label:after{content:"";flex:1;height:1px;background:var(--sn-line-2);}',
     '.sn-text{font-size:calc(13.5px * var(--sn-fs,1));line-height:1.72;white-space:pre-wrap;word-break:break-word;}',
@@ -409,13 +420,13 @@ function createMindMap(React) {
     '.sn-mini{position:absolute;right:12px;bottom:12px;z-index:4;width:168px;height:116px;border-radius:8px;',
     'background:rgba(255,253,246,.86);border:1px solid rgba(120,100,70,.24);box-shadow:0 2px 10px rgba(70,55,35,.12);overflow:hidden;pointer-events:none;}',
     '.sn-legend{position:absolute;left:12px;bottom:12px;z-index:4;display:flex;flex-direction:column;gap:3px;',
-    'font-size:11px;color:var(--sn-ink-3);pointer-events:none;}',
+    'font-size:12px;color:var(--sn-ink-3);pointer-events:none;}',
     '.sn-legend i{display:inline-block;width:16px;height:0;margin-right:6px;vertical-align:middle;}',
     '.sn-pathlist{list-style:none;margin:10px 0 0;padding:0;}',
     '.sn-pathstep{display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border-radius:7px;cursor:pointer;}',
     '.sn-pathstep[data-on="1"]{background:rgba(154,107,63,.14);}',
     '.sn-pathnum{flex:none;width:20px;height:20px;border-radius:50%;border:1px solid rgba(154,107,63,.5);color:#9a6b3f;',
-    'font-size:11px;display:flex;align-items:center;justify-content:center;margin-top:2px;}',
+    'font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:2px;}',
     '.sn-pathstep[data-last="1"] .sn-pathnum{background:#9a6b3f;color:#fff;border-color:#9a6b3f;}',
     '.sn-pathtxt{display:flex;flex-direction:column;gap:2px;min-width:0;}',
     '.sn-pathtitle{font-size:13.5px;color:var(--sn-ink);}',
@@ -427,10 +438,10 @@ function createMindMap(React) {
     '.sn-root[data-theme="dark"] .sn-pathnum{color:#e8c184;border-color:rgba(232,193,132,.5);}',
     '.sn-root[data-theme="dark"] .sn-pathstep[data-on="1"]{background:rgba(232,193,132,.16);}',
     '.sn-emptyfield{margin:.1em 0 .5em;padding:.5em .6em;border:1px dashed rgba(150,120,80,.35);border-radius:7px;color:rgba(90,72,48,.65);font-size:12.5px;line-height:1.5;}',
-    '.sn-hint{position:absolute;left:12px;top:10px;z-index:4;font-size:11px;color:var(--sn-ink-3);',
+    '.sn-hint{position:absolute;left:12px;top:10px;z-index:4;font-size:12px;color:var(--sn-ink-3);',
     'background:rgba(255,253,246,.7);padding:3px 8px;border-radius:999px;pointer-events:none;}',
     '.sn-src{margin-top:8px;border-left:2px solid rgba(154,107,63,.45);padding-left:9px;font-size:12.5px;line-height:1.65;opacity:.82;}',
-    '.sn-src-meta{font-size:11px;letter-spacing:.06em;opacity:.7;margin-bottom:3px;}',
+    '.sn-src-meta{font-size:12px;letter-spacing:.06em;opacity:.7;margin-bottom:3px;}',
     '.sn-live{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:5;font-size:12px;',
     'background:rgba(255,253,246,.92);border:1px solid rgba(120,100,70,.24);border-radius:999px;padding:5px 12px;pointer-events:none;}',
     /* 搜索 */
@@ -465,7 +476,7 @@ function createMindMap(React) {
     '.sn-oltitle{flex:none;max-width:62%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
     '.sn-olrow[data-lv="0"] .sn-oltitle{font-weight:700;font-size:calc(15px * var(--sn-fs,1));}',
     '.sn-olspacer{flex:1;min-width:8px;}',
-    '.sn-olen{font-size:11px;opacity:.66;font-style:italic;flex:none;}',
+    '.sn-olen{font-size:12px;opacity:.66;font-style:italic;flex:none;}',
     '.sn-oldot{flex:none;width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.22;}',
     '.sn-oldot[data-m="1"]{background:#c98a2e;opacity:.9;}',
     '.sn-oldot[data-m="2"]{background:#2f8f7d;opacity:.9;}',
@@ -477,6 +488,8 @@ function createMindMap(React) {
     'background:var(--sn-surface,#fffaf0);border:1px solid var(--sn-line,rgba(120,100,70,.24));',
     'box-shadow:var(--sn-shadow-panel,0 18px 48px rgba(60,45,28,.3));}',
     '.sn-rvhead{display:flex;align-items:baseline;gap:10px;font-size:12px;color:var(--sn-ink-3,#8c8071);',
+    '.sn-rvscope{margin-left:2px;padding:1px 7px;border-radius:999px;font-size:11.5px;',
+    'background:var(--sn-paper-2,#f6f1e6);border:1px solid var(--sn-line-2,rgba(120,100,70,.16));color:var(--sn-ink-2,#5c5142);}',
     'cursor:move;user-select:none;touch-action:none;}',
     '.sn-rvtitle{margin:8px 0 4px;font-size:calc(22px * var(--sn-fs,1));font-weight:700;letter-spacing:.02em;}',
     '.sn-rven{font-size:12.5px;font-style:italic;opacity:.6;margin-bottom:10px;}',
@@ -497,7 +510,7 @@ function createMindMap(React) {
     '.sn-search-row{display:flex;flex-direction:column;gap:1px;padding:8px 15px;cursor:pointer;}',
     '.sn-search-row[data-on="1"]{background:rgba(154,107,63,.14);}',
     '.sn-search-t{font-size:13.5px;line-height:1.35;}',
-    '.sn-search-p{font-size:11px;opacity:.58;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
+    '.sn-search-p{font-size:12px;opacity:.58;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
     '.sn-search-empty{padding:13px 15px;font-size:12.5px;opacity:.55;}',
     /* 编辑 */
     '.sn-title-input{flex:1;min-width:0;font:inherit;font-size:21px;font-weight:700;line-height:1.25;padding:1px 6px;',
@@ -1067,15 +1080,23 @@ function createMindMap(React) {
       [data, folds, nodesById],
     )
 
-    /* ---- 复习：先收「模糊」的，再收「没读过」的，最后才是已掌握的 ---- */
+    /* ---- 复习：先收「模糊」的，再收「复习过还是没印象」的，然后「没学过」的，最后已掌握 ---- */
     var startReview = useCallback(
-      function () {
-        var pool = sortReviewPool(data && data.nodes ? data.nodes : [])
+      function (scopeId) {
+        var scope = null
+        if (scopeId) {
+          scope = new Set([scopeId])
+          var kids = collectDescendants(scopeId)
+          for (var k = 0; k < kids.length; k++) scope.add(kids[k])
+        }
+        var pool = sortReviewPool(data && data.nodes ? data.nodes : [], scope)
         /* 一张可复习的都没有时也要把卡弹出来，告诉用户为什么是空的 */
         setReview({
           queue: pool.slice(0, 15).map(function (n) {
             return n.id
           }),
+          graded: {},
+          scopeId: scopeId || null,
           i: 0,
           shown: false,
         })
@@ -1088,10 +1109,29 @@ function createMindMap(React) {
       function (level) {
         if (!review) return
         var id = review.queue[review.i]
-        if (id) updateNode(id, { mastery: level }, 'mastery:' + id)
-        setReview({ queue: review.queue, i: review.i + 1, shown: false })
+        if (id) {
+          /* lastReviewed 让「没学过」和「复习后没印象」区分开（都是 mastery 0） */
+          updateNode(id, { mastery: level, lastReviewed: new Date().toISOString() }, 'mastery:' + id)
+        }
+        var graded = Object.assign({}, review.graded)
+        if (id) graded[id] = level
+        setReview({ queue: review.queue, graded: graded, scopeId: review.scopeId, i: review.i + 1, shown: false })
       },
       [review, updateNode],
+    )
+
+    /* 这一轮里「没印象 / 有点模糊」的，原样再来一遍（顺序按刚才评的先后） */
+    var reviewAgainWeak = useCallback(
+      function () {
+        if (!review) return
+        var weak = review.queue.filter(function (id) {
+          return review.graded[id] === 0 || review.graded[id] === 1
+        })
+        if (!weak.length) return
+        setReview({ queue: weak, graded: {}, scopeId: review.scopeId, i: 0, shown: false })
+        setRvPos({ x: 0, y: 0 })
+      },
+      [review],
     )
 
     var closeReview = useCallback(function () {
@@ -1446,10 +1486,50 @@ function createMindMap(React) {
       }
     }, [applyCamera])
 
+    /* 弹窗打开时把焦点交给它，关掉之后还给刚才那个按钮：
+       键盘用户不该被扔回页面开头。 */
+    useEffect(
+      function () {
+        var open = settingsOpen || importOpen || !!review || !!pendingDelete
+        if (!open) return
+        var back = document.activeElement
+        var raf = window.requestAnimationFrame(function () {
+          var dialog = document.querySelector('.sn-root [role="dialog"][data-open="1"]')
+          if (!dialog) return
+          var first = dialog.querySelector('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
+          if (first && typeof first.focus === 'function') first.focus()
+        })
+        return function () {
+          window.cancelAnimationFrame(raf)
+          if (back && typeof back.focus === 'function' && document.contains(back)) back.focus()
+        }
+      },
+      [settingsOpen, importOpen, review, pendingDelete],
+    )
+
     useEffect(function () {
       var onKey = function (event) {
         var A = actionsRef.current || {}
         var key = String(event.key || '').toLowerCase()
+        /* 输入法正在组字（打拼音、选候选词）时，按键不该被当成命令：
+           否则敲「d」「e」「l」会把节点删掉。 */
+        if (event.isComposing || event.keyCode === 229) return
+        /* 弹窗开着时，把 Tab 圈在弹窗里，Esc 由下面的分支统一处理 */
+        var dialog = document.querySelector('.sn-root [role="dialog"][data-open="1"]')
+        if (dialog && event.key === 'Tab') {
+          var items = Array.prototype.slice.call(
+            dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+          ).filter(function (el) {
+            return !el.disabled && el.offsetParent !== null
+          })
+          if (items.length) {
+            event.preventDefault()
+            var at = items.indexOf(document.activeElement)
+            var next = event.shiftKey ? (at <= 0 ? items.length - 1 : at - 1) : (at === items.length - 1 || at < 0 ? 0 : at + 1)
+            items[next].focus()
+            return
+          }
+        }
         /* 焦点在输入框里时，快捷键要先让路：⌘Z 应该撤销刚打的字，
            Tab 应该在字段之间跳，而不是删节点/加概念。 */
         var t = event.target
@@ -2858,6 +2938,15 @@ function createMindMap(React) {
             { className: 'sn-chip', onClick: function () { focusOn(selected.id, true) } },
             '以它为主根展开',
           ),
+          h(
+            'button',
+            {
+              className: 'sn-chip',
+              onClick: function () { startReview(selected.id) },
+              title: '只复习这一支下面写了正文的概念',
+            },
+            '复习这一支',
+          ),
           editable
             ? h(
                 'button',
@@ -3288,6 +3377,7 @@ function createMindMap(React) {
                   {
                     className: 'sn-rvcard',
                     role: 'dialog',
+                    'data-open': '1',
                     'aria-modal': 'true',
                     'aria-label': '复习',
                     style: { transform: 'translate(' + rvPos.x + 'px,' + rvPos.y + 'px)' },
@@ -3296,6 +3386,13 @@ function createMindMap(React) {
                     'div',
                     { className: 'sn-rvhead', onPointerDown: startReviewDrag },
                     h('span', null, total ? (done ? '复习完成' : '复习 ' + (review.i + 1) + ' / ' + total) : '复习'),
+                    review.scopeId
+                      ? h(
+                          'span',
+                          { className: 'sn-rvscope' },
+                          '只复习「' + ((nodesById.get(review.scopeId) || {}).title || '这一支') + '」',
+                        )
+                      : null,
                     h(
                       'span',
                       {
@@ -3325,7 +3422,21 @@ function createMindMap(React) {
                         h(
                           'div',
                           { className: 'sn-rvacts' },
-                          total ? h('button', { className: 'sn-rvbtn', 'data-main': '1', onClick: startReview }, '再来一轮') : null,
+                          total
+                            ? (function () {
+                                var weak = review.queue.filter(function (id) {
+                                  return review.graded[id] === 0 || review.graded[id] === 1
+                                })
+                                return weak.length
+                                  ? h(
+                                      'button',
+                                      { className: 'sn-rvbtn', 'data-main': '1', onClick: reviewAgainWeak },
+                                      '再来一遍刚才模糊的 ' + weak.length + ' 个',
+                                    )
+                                  : null
+                              })()
+                            : null,
+                          total ? h('button', { className: 'sn-rvbtn', 'data-main': '1', onClick: function () { startReview(review.scopeId) } }, '再来一轮') : null,
                           h('button', { className: 'sn-rvbtn', onClick: closeReview }, '回去看图'),
                         ),
                       )
@@ -3459,7 +3570,8 @@ function createMindMap(React) {
               { className: 'sn-searchwrap' },
               h(
                 'div',
-                { className: 'sn-dialog', role: 'dialog', 'aria-modal': 'true', 'aria-label': '删除确认' },
+                { className: 'sn-dialog', role: 'dialog',
+                    'data-open': '1', 'aria-modal': 'true', 'aria-label': '删除确认' },
                 h('h4', null, '删除「' + (victim.title || '这个概念') + '」'),
                 h(
                   'p',
@@ -3527,6 +3639,7 @@ function createMindMap(React) {
               {
                 className: 'sn-dialog sn-setdlg',
                 role: 'dialog',
+                    'data-open': '1',
                 'aria-modal': 'true',
                 'aria-label': '纸与字',
                 onClick: function (e) {
@@ -3668,6 +3781,7 @@ function createMindMap(React) {
               {
                 className: 'sn-dialog sn-impdlg',
                 role: 'dialog',
+                    'data-open': '1',
                 'aria-modal': 'true',
                 'aria-label': '怎么把 PDF 变成图',
                 onClick: function (e) {

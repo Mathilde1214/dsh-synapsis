@@ -70,7 +70,7 @@ Click "析域" in the sidebar and the panel takes over the main area.
 
 **Outline view**: "大纲" swaps the canvas for a tree of the whole map, starting at its root regardless of where the canvas is focused. Click a row to select it (the side panel follows), double-click to jump the canvas there. The triangle folds a branch; the dot on the right is its mastery. With two hundred concepts this beats zooming around.
 
-**Review**: "复习" picks a batch of concepts — title first, recall it, then flip to the definition, formal statement, examples and pitfalls, and grade yourself "没印象 / 有点模糊 / 会了". The grade is written back to `mastery`, so the fuzzy ones lead the next round. Fifteen per round. Drag the card by its top strip if it covers the map.
+**Review**: "复习" picks a batch of concepts — title first, recall it, then flip to the definition, formal statement, examples and pitfalls, and grade yourself "没印象 / 有点模糊 / 会了". The grade is written back to `mastery`, so the fuzzy ones lead the next round. Fifteen per round. Select a chapter and use "复习这一支" in the sidebar to review just that branch; when a round ends you can replay only the ones you fumbled. Drag the card by its top strip if it covers the map.
 
 ### Keyboard
 
