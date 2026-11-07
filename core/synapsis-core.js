@@ -444,6 +444,7 @@ function createMindMap(React) {
     '.sn-scene{position:absolute;left:0;top:0;transform-origin:0 0;}',
     '.sn-scene[data-moving="1"]{will-change:transform;}',
     '.sn-edges{position:absolute;left:0;top:0;overflow:visible;pointer-events:none;}',
+    '.sn-marquee{position:absolute;display:none;pointer-events:none;z-index:6;border:1px solid rgba(32,150,130,.85);background:rgba(32,150,130,.12);border-radius:2px;}',
     '.sn-linklayer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5;overflow:visible;}',
     '.sn-root[data-linking="1"] .sn-card{transition:box-shadow .12s ease;}',
     /* 悬停效果只在真有指针的设备上生效（触屏上 :hover 会「粘住」） */
@@ -986,6 +987,7 @@ function createMindMap(React) {
     var linkFromRef = useRef('')
     var linkPathRef = useRef(null)
     var linkOverlayRef = useRef(null)
+    var marqueeRef = useRef(null)
     var historyRef = useRef([])
     var lastLabelRef = useRef('')
 
@@ -1589,10 +1591,31 @@ function createMindMap(React) {
         }
         applyCamera()
       }
+      var mq = { active: false, x0: 0, y0: 0 }
       var onDown = function (event) {
         if (event.button !== 0) return
-        /* Shift 是「连边」修饰键：不要同时把画布拖走 */
-        if (event.shiftKey) return
+        /* 卡片上的 Shift 按下是「连边」，交给卡片自己处理 */
+        var shiftCard = event.target && event.target.closest ? event.target.closest('.sn-card') : null
+        if (event.shiftKey && shiftCard) return
+        /* 空白处 Shift 拖 = 框选一片概念 */
+        if (event.shiftKey) {
+          var box = el.getBoundingClientRect()
+          mq.active = true
+          mq.x0 = event.clientX - box.left
+          mq.y0 = event.clientY - box.top
+          var r = marqueeRef.current
+          if (r) {
+            r.style.display = 'block'
+            r.style.left = mq.x0 + 'px'
+            r.style.top = mq.y0 + 'px'
+            r.style.width = '0px'
+            r.style.height = '0px'
+          }
+          try {
+            el.setPointerCapture(event.pointerId)
+          } catch (e) {}
+          return
+        }
         /* 卡片上的按下交给卡片自己（连边 / 拖拽改父），别顺手把画布也拖走 */
         var hitCard = event.target && event.target.closest ? event.target.closest('.sn-card') : null
         if (hitCard) return
@@ -1608,6 +1631,20 @@ function createMindMap(React) {
         }
       }
       var onMove = function (event) {
+        /* 框选中：只更新那个方框，不动镜头 */
+        if (mq.active) {
+          var canvasBox = el.getBoundingClientRect()
+          var cx1 = event.clientX - canvasBox.left
+          var cy1 = event.clientY - canvasBox.top
+          var node = marqueeRef.current
+          if (node) {
+            node.style.left = Math.min(mq.x0, cx1) + 'px'
+            node.style.top = Math.min(mq.y0, cy1) + 'px'
+            node.style.width = Math.abs(cx1 - mq.x0) + 'px'
+            node.style.height = Math.abs(cy1 - mq.y0) + 'px'
+          }
+          return
+        }
         if (!pointers.has(event.pointerId)) return
         pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
         if (pointers.size === 2) {
@@ -1635,6 +1672,24 @@ function createMindMap(React) {
         applyCamera()
       }
       var onUp = function (event) {
+        if (mq.active) {
+          mq.active = false
+          var box2 = el.getBoundingClientRect()
+          var ex = event.clientX - box2.left
+          var ey = event.clientY - box2.top
+          var node2 = marqueeRef.current
+          if (node2) node2.style.display = 'none'
+          var cam = camRef.current
+          var x0 = (Math.min(mq.x0, ex) - cam.x) / cam.k
+          var x1 = (Math.max(mq.x0, ex) - cam.x) / cam.k
+          var y0 = (Math.min(mq.y0, ey) - cam.y) / cam.k
+          var y1 = (Math.max(mq.y0, ey) - cam.y) / cam.k
+          /* 太小的拖动当误触，不算框选 */
+          if (Math.abs(x1 - x0) * cam.k > 6 && Math.abs(y1 - y0) * cam.k > 6 && actionsRef.current) {
+            actionsRef.current.selectInRect({ x0: x0, y0: y0, x1: x1, y1: y1 })
+          }
+          return
+        }
         pointers.delete(event.pointerId)
         if (pointers.size < 2) pinchDist = 0
         if (pointers.size === 0) {
@@ -3266,6 +3321,23 @@ function createMindMap(React) {
       doDelete: doDelete,
       childCount: childCount,
       exportMap: exportMap,
+      /* 框选：把落在世界坐标矩形里的概念一次性选上 */
+      selectInRect: function (box) {
+        if (!layout) return 0
+        var ids = []
+        for (var i = 0; i < layout.order.length; i++) {
+          var n = layout.order[i]
+          if (n.id === layout.root.id) continue
+          var cx = n.x
+          var cy = n.y
+          if (cx >= box.x0 && cx <= box.x1 && cy >= box.y0 && cy <= box.y1) ids.push(n.id)
+        }
+        if (ids.length) {
+          multiRef.current = ids
+          setMulti(ids)
+        }
+        return ids.length
+      },
       closeExport: function () {
         if (!exportOpen) return false
         setExportOpen(false)
@@ -3574,7 +3646,7 @@ function createMindMap(React) {
               : edgeSel
                 ? '选中了一条关系线：上面可换类型或删掉 · Esc 取消'
                 : editable
-                  ? '滚轮缩放 · 拖拽平移 · 拖卡片改归属 · 双击进入 · Tab 新建 · F2 改名 · Del 删除 · Shift 连边 · ⌘Z 撤销'
+                  ? '滚轮缩放 · 拖拽平移 · 拖卡片改归属 · 双击进入 · Tab 新建 · F2 改名 · Del 删除 · Shift 连边 · Shift 拖空白框选 · ⌘Z 撤销'
                   : '滚轮缩放 · 拖拽平移 · 双击进入子层',
         ),
           props.liveText ? h('div', { className: 'sn-live' }, props.liveText) : null,
@@ -3608,6 +3680,8 @@ function createMindMap(React) {
               strokeLinecap: 'round',
             }),
           ),
+          /* 框选时那个方框：屏幕坐标系，和橡皮筋线一样不进 transform */
+          h('div', { className: 'sn-marquee', ref: marqueeRef }),
           h(
             'div',
             { className: 'sn-legend' },
