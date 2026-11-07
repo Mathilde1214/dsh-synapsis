@@ -52,10 +52,13 @@ async function jget(url) {
 
 function hostDark() {
   const body = document.body
-  if (!body) return false
-  if (body.hasAttribute('data-ds-dark-theme')) return true
-  if (body.classList.contains('dark') || body.classList.contains('theme-dark')) return true
-  return document.documentElement.getAttribute('data-theme') === 'dark'
+  const root = document.documentElement
+  /* 宿主自己给的信号优先：DSH 桌面端用 body 上的属性，web 端可能是 class 或 data-theme */
+  if (body && body.hasAttribute('data-ds-dark-theme')) return true
+  if (body && (body.classList.contains('dark') || body.classList.contains('theme-dark'))) return true
+  if (root && (root.getAttribute('data-theme') === 'dark' || root.classList.contains('dark'))) return true
+  /* 都没有时退回系统偏好——别的宿主、或者 dsh web 换了实现，也不至于一直停在日光纸 */
+  return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
 }
 
 /* 渲染崩了不该让整块面板变白：兜住它，给一个能重新加载的出口。 */
@@ -127,13 +130,24 @@ function Panel() {
     } catch {}
   }, [theme])
 
-  /* 宿主切日光/夜间时，auto 模式要跟着变 */
+  /* 宿主切日光/夜间时，auto 模式要跟着变：属性变化 + 系统偏好变化两条都听 */
   React.useEffect(() => {
     const sync = () => setDarkHost(hostDark())
     const obs = new MutationObserver(sync)
     if (document.body) obs.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme', 'class'] })
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] })
-    return () => obs.disconnect()
+    const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null
+    if (media) {
+      if (media.addEventListener) media.addEventListener('change', sync)
+      else if (media.addListener) media.addListener(sync)
+    }
+    return () => {
+      obs.disconnect()
+      if (media) {
+        if (media.removeEventListener) media.removeEventListener('change', sync)
+        else if (media.removeListener) media.removeListener(sync)
+      }
+    }
   }, [])
 
   /* 删除要连点两下：第一下只是「举枪」，4 秒内不点就自动放下 */

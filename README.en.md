@@ -68,11 +68,11 @@ Click "析域" in the sidebar and the panel takes over the main area.
 
 **Drag a card to re-parent it**: drag one card onto another and it moves under it. Dropping into its own descendants is refused, since that would cut the tree in two. Dragging empty space still pans.
 
-**Export**: the top bar's "导出" gives you a PNG, an SVG, or a Markdown outline. **PNG and SVG export the layer you're looking at** — go back to the root with the breadcrumb if you want the whole book. Pick SVG when you need detail: it stays sharp at any zoom. **Markdown exports the whole tree** as an indented outline, which suits pasting into a notes app.
+**Export**: the top bar's "导出" gives you five choices. **PNG and SVG each come in "current layer" and "whole map"** — the layer is the branch you're looking at, the whole map starts from the root and fits all two hundred concepts into one file (a much bigger file). Pick SVG when you need detail: it stays sharp at any zoom. **Markdown exports the whole tree** as an indented outline, which suits pasting into a notes app.
 
 **Outline view**: "大纲" swaps the canvas for a tree of the whole map, starting at its root regardless of where the canvas is focused. Click a row to select it (the side panel follows), double-click to jump the canvas there. The triangle folds a branch; the dot on the right is its mastery. With two hundred concepts this beats zooming around.
 
-**Review**: "复习" picks a batch of concepts — title first, recall it, then flip to the definition, formal statement, examples and pitfalls, and grade yourself "没印象 / 有点模糊 / 会了". The grade is written back to `mastery`, so the fuzzy ones lead the next round. Fifteen per round. Select a chapter and use "复习这一支" in the sidebar to review just that branch; when a round ends you can replay only the ones you fumbled. Drag the card by its top strip if it covers the map.
+**Review**: "复习" picks a batch of concepts — title first, recall it, then flip to the definition, formal statement, examples and pitfalls, and grade yourself "没印象 / 有点模糊 / 会了". The grade schedules the next look: **missed comes back tomorrow, fuzzy in three days, known doubles the last interval (7 days minimum, 120 maximum)**. Due cards lead the queue and the header says how many are due. "明天再问" pushes a card to tomorrow without grading it. Fifteen per round, and only concepts that actually have body text are eligible. Select a chapter and use "复习这一支" in the sidebar to review just that branch; when a round ends you can replay only the ones you fumbled. Drag the card by its top strip if it covers the map.
 
 ### Keyboard
 
@@ -235,10 +235,10 @@ npm run dev       # node tools/dev-server.mjs, then open http://127.0.0.1:7788/
 
 - The panel occupies the host's main panel, so it and the conversation view are mutually exclusive — you switch back and forth. On the desktop app the port is random and the login ticket never reaches a normal browser, so "two tabs, one watching the map while the other chats" only works with `dsh web`.
 - Relation edges only surface near the focus; otherwise a few hundred nodes turn into yarn. To see a particular relation, go into its chapter first.
-- Multi-select isn't implemented yet. PNG/SVG export covers **the current layer**; Markdown export covers **the whole tree** (walked from the root, handy for feeding other tools).
-- Review only ranks concepts by mastery; there is no real spaced repetition yet — it doesn't remember when you last saw a concept.
+- Multi-select isn't implemented yet.
+- Review schedules by due date plus mastery; it is not a full SM-2 model with difficulty factors, and a round still caps at fifteen cards.
 - The outline view is read-only; edits still happen on the canvas.
-- Review takes fifteen at a time and the card header tells you how many are still waiting, but there is no real spaced-repetition schedule yet.
+- The outline view is read-only; edits still happen on the canvas.
 - UI copy is Chinese only (`locale/en.json` holds plugin metadata only).
 - Interface copy is Chinese only (`locale/en.json` holds plugin metadata, not UI strings).
 

@@ -51,10 +51,43 @@ function createMindMap(React) {
     })
   }
 
-  function sortReviewPool(nodes, scopeIds) {
+  /* 间隔重复：0 分明天再看，1 分三天后，2 分按上次间隔翻倍（7 天起，120 天上限）。
+     dueAt 存 ISO 字符串；没有这个字段的老图按「现在就该看」处理。 */
+  var REVIEW_MIN_DAYS = 1
+  var REVIEW_MAX_DAYS = 120
+
+  function dueAtOf(node) {
+    if (!node || typeof node.dueAt !== 'string' || !node.dueAt) return 0
+    var at = Date.parse(node.dueAt)
+    return Number.isFinite(at) ? at : 0
+  }
+
+  function isDue(node, now) {
+    var at = dueAtOf(node)
+    return !at || at <= (now || Date.now())
+  }
+
+  /* 评分之后该记什么：只算，不改传入的对象 */
+  function gradePlan(node, level, now) {
+    var at = Number.isFinite(now) ? now : Date.now()
+    var prev = node && Number(node.interval)
+    var days
+    if (level === 0) days = REVIEW_MIN_DAYS
+    else if (level === 1) days = 3
+    else days = Math.min(REVIEW_MAX_DAYS, Math.max(7, (Number.isFinite(prev) && prev > 0 ? prev : 3) * 2))
+    return {
+      mastery: level,
+      reviewedAt: new Date(at).toISOString(),
+      dueAt: new Date(at + days * 86400000).toISOString(),
+      interval: days,
+    }
+  }
+
+  function sortReviewPool(nodes, scopeIds, now) {
     /* 只认真正的 Set：传进来别的东西（事件对象之类）时按「整张图」处理，
        否则会拿一个空集合去过滤，结果一张都收不到。 */
     var inScope = scopeIds instanceof Set && scopeIds.size ? scopeIds : null
+    var stamp = Number.isFinite(now) ? now : Date.now()
     var pool = (nodes || []).filter(function (n) {
       if (!n || !n.id || !n.parent) return false
       if (inScope && !inScope.has(n.id)) return false
@@ -69,6 +102,13 @@ function createMindMap(React) {
       return 3
     }
     return pool.sort(function (a, b) {
+      /* 到期的排前面；同为到期（或都没到期）再按 dueAt 早的优先 */
+      var da = isDue(a, stamp) ? 0 : 1
+      var db = isDue(b, stamp) ? 0 : 1
+      if (da !== db) return da - db
+      var ta = dueAtOf(a)
+      var tb = dueAtOf(b)
+      if (ta !== tb) return ta - tb
       return rank(a) - rank(b) || String(a.title || '').localeCompare(String(b.title || ''), 'zh')
     })
   }
@@ -1134,7 +1174,12 @@ function createMindMap(React) {
           var kids = collectDescendants(scopeKey)
           for (var k = 0; k < kids.length; k++) scope.add(kids[k])
         }
-        var pool = sortReviewPool(data && data.nodes ? data.nodes : [], scope)
+        var nodesNow = data && data.nodes ? data.nodes : []
+        var now = Date.now()
+        var pool = sortReviewPool(nodesNow, scope, now)
+        var dueCount = pool.filter(function (n) {
+          return isDue(n, now)
+        }).length
         /* 一张可复习的都没有时也要把卡弹出来，告诉用户为什么是空的 */
         setReview({
           queue: pool.slice(0, 15).map(function (n) {
@@ -1142,6 +1187,7 @@ function createMindMap(React) {
           }),
           /* 池子有多大也要记住：卡上要说清「还有多少没进这一轮」 */
           poolSize: pool.length,
+          dueCount: dueCount,
           graded: {},
           scopeId: scopeKey,
           i: 0,
@@ -1157,12 +1203,41 @@ function createMindMap(React) {
         if (!review) return
         var id = review.queue[review.i]
         if (id) {
-          /* lastReviewed 让「没学过」和「复习后没印象」区分开（都是 mastery 0） */
-          updateNode(id, { mastery: level, lastReviewed: new Date().toISOString() }, 'mastery:' + id)
+          /* 评分顺手排下一次：0 分明天、1 分三天、2 分按上次翻倍 */
+          updateNode(id, gradePlan(nodesById.get(id), level), 'mastery:' + id)
         }
         var graded = Object.assign({}, review.graded)
         if (id) graded[id] = level
-        setReview({ queue: review.queue, graded: graded, scopeId: review.scopeId, i: review.i + 1, shown: false })
+        setReview({
+          queue: review.queue,
+          poolSize: review.poolSize,
+          dueCount: review.dueCount,
+          graded: graded,
+          scopeId: review.scopeId,
+          i: review.i + 1,
+          shown: false,
+        })
+      },
+      [review, updateNode, nodesById],
+    )
+
+    /* 「明天再问」：不评分，只把到期时间推到明天，然后跳到下一张 */
+    var deferReview = useCallback(
+      function () {
+        if (!review) return
+        var id = review.queue[review.i]
+        if (id) {
+          updateNode(id, { dueAt: new Date(Date.now() + 86400000).toISOString() }, 'defer:' + id)
+        }
+        setReview({
+          queue: review.queue,
+          poolSize: review.poolSize,
+          dueCount: Math.max(0, (review.dueCount || 0) - (id ? 1 : 0)),
+          graded: Object.assign({}, review.graded),
+          scopeId: review.scopeId,
+          i: review.i + 1,
+          shown: false,
+        })
       },
       [review, updateNode],
     )
@@ -1173,7 +1248,7 @@ function createMindMap(React) {
         if (!review) return
         var weak = weakReview(review)
         if (!weak.length) return
-        setReview({ queue: weak, graded: {}, scopeId: review.scopeId, i: 0, shown: false })
+        setReview({ queue: weak, poolSize: weak.length, dueCount: weak.length, graded: {}, scopeId: review.scopeId, i: 0, shown: false })
         setRvPos({ x: 0, y: 0 })
       },
       [review],
@@ -2105,10 +2180,10 @@ function createMindMap(React) {
       return lines
     }
 
-    var buildExportSvg = useCallback(function () {
+    var buildExportSvg = useCallback(function (scope) {
       if (!data || !data.nodes || !data.nodes.length) return null
-      /* 导出「你现在看到的这一层」：和画布同一套换根逻辑，图才不会散成一整本书 */
-      var lay = buildLayout(data.nodes, pathState ? null : focusId || null)
+      /* 默认导出「你现在看到的这一层」；scope === 'all' 时从根排，整张图一张不落 */
+      var lay = buildLayout(data.nodes, scope === 'all' || pathState ? null : focusId || null)
       if (!lay) return null
       var b = lay.bounds
       var pad = 60
@@ -2221,10 +2296,11 @@ function createMindMap(React) {
       return t || 'synapsis'
     }
 
-    var exportMap = useCallback(function (kind) {
-      var built = buildExportSvg()
+    var exportMap = useCallback(function (kind, scope) {
+      var all = scope === 'all'
+      var built = buildExportSvg(all ? 'all' : undefined)
       if (!built) return
-      var name = exportBaseName()
+      var name = exportBaseName() + (all ? '-整张' : '')
       if (kind === 'md') {
         var lines = ['# ' + (data.title || '概念图'), '']
         if (data.subtitle) lines.push('> ' + data.subtitle, '')
@@ -3175,9 +3251,11 @@ function createMindMap(React) {
             ? h(
                 'div',
                 { className: 'sn-exportmenu' },
-                h('button', { className: 'sn-exportitem', onClick: function () { setExportOpen(false); exportMap('png') } }, 'PNG 图片'),
-                h('button', { className: 'sn-exportitem', onClick: function () { setExportOpen(false); exportMap('svg') } }, 'SVG 矢量图'),
-                h('button', { className: 'sn-exportitem', onClick: function () { setExportOpen(false); exportMap('md') } }, 'Markdown 大纲'),
+                h('button', { className: 'sn-exportitem', onClick: function () { setExportOpen(false); exportMap('png') } }, 'PNG 图片（当前层）'),
+                h('button', { className: 'sn-exportitem', onClick: function () { setExportOpen(false); exportMap('png', 'all') } }, 'PNG 图片（整张）'),
+                h('button', { className: 'sn-exportitem', onClick: function () { setExportOpen(false); exportMap('svg') } }, 'SVG 矢量图（当前层）'),
+                h('button', { className: 'sn-exportitem', onClick: function () { setExportOpen(false); exportMap('svg', 'all') } }, 'SVG 矢量图（整张）'),
+                h('button', { className: 'sn-exportitem', onClick: function () { setExportOpen(false); exportMap('md') } }, 'Markdown 大纲（整棵）'),
               )
             : null,
         ),
@@ -3438,6 +3516,9 @@ function createMindMap(React) {
             review.poolSize > total
               ? h('span', { className: 'sn-rvmore' }, '池里还有 ' + (review.poolSize - total) + ' 个，下一轮接着来')
               : null,
+            review.dueCount
+              ? h('span', { className: 'sn-rvmore', 'data-due': '1' }, '到期 ' + review.dueCount + ' 个')
+              : null,
                     review.scopeId
                       ? h(
                           'span',
@@ -3520,17 +3601,30 @@ function createMindMap(React) {
                                 h('button', { key: 'b', className: 'sn-rvbtn', onClick: function () { gradeReview(1) } }, '有点模糊'),
                                 h('button', { key: 'c', className: 'sn-rvbtn', 'data-main': '1', onClick: function () { gradeReview(2) } }, '会了'),
                               ]
-                            : h(
-                                'button',
-                                {
-                                  className: 'sn-rvbtn',
-                                  'data-main': '1',
-                                  onClick: function () {
-                                    setReview(flipReview(review))
+                            : [
+                                h(
+                                  'button',
+                                  {
+                                    key: 'show',
+                                    className: 'sn-rvbtn',
+                                    'data-main': '1',
+                                    onClick: function () {
+                                      setReview(flipReview(review))
+                                    },
                                   },
-                                },
-                                '显示答案',
-                              ),
+                                  '显示答案',
+                                ),
+                                h(
+                                  'button',
+                                  {
+                                    key: 'later',
+                                    className: 'sn-rvbtn',
+                                    title: '这一张今天先跳过，明天再出现',
+                                    onClick: deferReview,
+                                  },
+                                  '明天再问',
+                                ),
+                              ],
                         ),
                       ),
                 ),
@@ -3907,6 +4001,9 @@ function createMindMap(React) {
     sortReviewPool: sortReviewPool,
     flipReview: flipReview,
     weakReview: weakReview,
+    gradePlan: gradePlan,
+    isDue: isDue,
+    dueAtOf: dueAtOf,
   }
 }
 
@@ -3967,10 +4064,13 @@ async function jget(url) {
 
 function hostDark() {
   const body = document.body
-  if (!body) return false
-  if (body.hasAttribute('data-ds-dark-theme')) return true
-  if (body.classList.contains('dark') || body.classList.contains('theme-dark')) return true
-  return document.documentElement.getAttribute('data-theme') === 'dark'
+  const root = document.documentElement
+  /* 宿主自己给的信号优先：DSH 桌面端用 body 上的属性，web 端可能是 class 或 data-theme */
+  if (body && body.hasAttribute('data-ds-dark-theme')) return true
+  if (body && (body.classList.contains('dark') || body.classList.contains('theme-dark'))) return true
+  if (root && (root.getAttribute('data-theme') === 'dark' || root.classList.contains('dark'))) return true
+  /* 都没有时退回系统偏好——别的宿主、或者 dsh web 换了实现，也不至于一直停在日光纸 */
+  return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
 }
 
 /* 渲染崩了不该让整块面板变白：兜住它，给一个能重新加载的出口。 */
@@ -4042,13 +4142,24 @@ function Panel() {
     } catch {}
   }, [theme])
 
-  /* 宿主切日光/夜间时，auto 模式要跟着变 */
+  /* 宿主切日光/夜间时，auto 模式要跟着变：属性变化 + 系统偏好变化两条都听 */
   React.useEffect(() => {
     const sync = () => setDarkHost(hostDark())
     const obs = new MutationObserver(sync)
     if (document.body) obs.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme', 'class'] })
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class'] })
-    return () => obs.disconnect()
+    const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null
+    if (media) {
+      if (media.addEventListener) media.addEventListener('change', sync)
+      else if (media.addListener) media.addListener(sync)
+    }
+    return () => {
+      obs.disconnect()
+      if (media) {
+        if (media.removeEventListener) media.removeEventListener('change', sync)
+        else if (media.removeListener) media.removeListener(sync)
+      }
+    }
   }, [])
 
   /* 删除要连点两下：第一下只是「举枪」，4 秒内不点就自动放下 */

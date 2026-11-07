@@ -135,6 +135,46 @@ test('传进来的不是 Set 时按整张图处理，不当成空范围', () => 
   assert.equal(comp.sortReviewPool(nodes, new Set()).length, 2)
 })
 
+test('评分会安排下一次：0 分明天，1 分三天，2 分按上次翻倍且有上下限', () => {
+  const now = Date.UTC(2026, 0, 1, 0, 0, 0)
+  const day = 86400000
+  const g0 = comp.gradePlan({ interval: 30 }, 0, now)
+  assert.equal(g0.interval, 1)
+  assert.equal(Date.parse(g0.dueAt) - now, day)
+  assert.equal(g0.mastery, 0)
+  assert.ok(g0.reviewedAt, '记下这次复习的时间')
+
+  const g1 = comp.gradePlan({ interval: 30 }, 1, now)
+  assert.equal(g1.interval, 3)
+  assert.equal(Date.parse(g1.dueAt) - now, 3 * day)
+
+  /* 会了：从 3 天翻到 7 天（最小值），从 60 天翻到 120（上限），没记过按 3 天起 */
+  assert.equal(comp.gradePlan({ interval: 3 }, 2, now).interval, 7)
+  assert.equal(comp.gradePlan({ interval: 60 }, 2, now).interval, 120)
+  assert.equal(comp.gradePlan({}, 2, now).interval, 7)
+})
+
+test('到期的排前面，没到期的按到期时间排队', () => {
+  const now = Date.UTC(2026, 0, 10, 0, 0, 0)
+  const day = 86400000
+  const iso = (d) => new Date(now + d * day).toISOString()
+  const nodes = [
+    { id: 'mastered-later', parent: 'root', title: 'c', definition: 'x', mastery: 2, dueAt: iso(5) },
+    { id: 'fuzzy-overdue', parent: 'root', title: 'a', definition: 'x', mastery: 1, dueAt: iso(-2) },
+    { id: 'fresh', parent: 'root', title: 'b', definition: 'x', mastery: 0 },
+    { id: 'soon', parent: 'root', title: 'd', definition: 'x', mastery: 0, dueAt: iso(3) },
+  ]
+  const ids = comp.sortReviewPool(nodes, null, now).map((x) => x.id)
+  /* 没设 dueAt 的视为到期；到期的里 dueAt 早的在前；没到期的排最后 */
+  assert.deepEqual(ids, ['fresh', 'fuzzy-overdue', 'soon', 'mastered-later'])
+})
+
+test('isDue / dueAtOf 对坏值不炸', () => {
+  assert.equal(comp.isDue({}, 0), true)
+  assert.equal(comp.isDue({ dueAt: 'not-a-date' }, Date.now()), true)
+  assert.equal(comp.dueAtOf({ dueAt: '2026-01-01T00:00:00.000Z' }) > 0, true)
+})
+
 test('排序不会改动调用方传进来的数组', () => {
   const input = [n('b', 1), n('a', 1)]
   const snapshot = input.map((x) => x.id)
