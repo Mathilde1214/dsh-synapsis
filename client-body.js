@@ -230,8 +230,10 @@ function Panel() {
           return true
         }
       }
-      /* 到上限还有更新的编辑没落盘：必须如实返回 false，切图 / 删除才不会放行 */
-      setStatus('还在保存…')
+      /* 到上限还有更新的编辑没落盘：如实返回 false，切图 / 删除才不会放行；
+         同时把状态说清楚并给一个重试入口，别让「还在保存…」一直挂着。 */
+      setStatus('还有改动没写进去（保存排队超时）')
+      setToast({ text: '还有改动没写进去', kind: 'retry' })
       return false
     }
 
@@ -373,7 +375,17 @@ function Panel() {
             setStatus('文件已被外部修改')
           }
         })
-        .catch(() => {})
+        .catch((err) => {
+          /* 文件已经不在了：不能默默吞掉，否则要等到下次保存才看见提示。
+             这里直接摆出 gone 横幅，并顺手刷新一次列表（下拉里那张图会消失）。 */
+          if (err && err.code === 'not_found') {
+            setConflict({ token: null, mtime: null, name: current, gone: true })
+            setStatus('文件在别处被删掉了，可以另存为新图')
+            jget('/synapsis-api/list')
+              .then((list) => setFiles((list && list.items) || []))
+              .catch(() => {})
+          }
+        })
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
@@ -420,7 +432,14 @@ function Panel() {
     const doc = docRef.current
     if (!doc) return
     const base = (nameRef.current || '未命名图').replace(/\.mindmap\.json$/, '')
-    const copy = { ...doc, title: (doc.title || base) + '（副本）' }
+    const copyTitle = (doc.title || base) + '（副本）'
+    /* 根节点标题也改成「（副本）」：否则下拉里叫副本、画布上还是旧名字 */
+    const rootId = (doc.nodes.find((x) => x.parent === null) || doc.nodes[0] || {}).id
+    const copy = {
+      ...doc,
+      title: copyTitle,
+      nodes: doc.nodes.map((x) => (x.id === rootId ? { ...x, title: copyTitle } : x)),
+    }
     setStatus('另存中…')
     try {
       const res = await fetch('/synapsis-api/create', {

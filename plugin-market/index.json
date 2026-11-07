@@ -5,8 +5,8 @@
     "zh": "析域"
   },
   "description": {
-    "en": "Concept maps you can walk into — a DSH Web UI panel plugin.",
-    "zh": "能把讲义铺成一张走进去的概念图 —— DSH Web UI 面板插件。"
+    "en": "Concept maps you can walk into — a a panel plugin for DSH (desktop or dsh web).",
+    "zh": "能把讲义铺成一张走进去的概念图 —— DSH 桌面端（或 dsh web）的面板插件。"
   },
   "plugins": [
     {

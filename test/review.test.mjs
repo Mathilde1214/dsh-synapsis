@@ -38,6 +38,32 @@ test('工厂导出齐全', () => {
   assert.equal(typeof comp.fitFor, 'function')
   assert.equal(typeof comp.createMathRenderer, 'function')
   assert.equal(typeof comp.sortReviewPool, 'function')
+  assert.equal(typeof comp.flipReview, 'function')
+  assert.equal(typeof comp.weakReview, 'function')
+})
+
+test('翻面保住这一轮的进度与范围', () => {
+  const state = {
+    queue: ['a', 'b', 'c'],
+    graded: { a: 0, b: 1 },
+    scopeId: 'ch1',
+    i: 1,
+    shown: false,
+  }
+  const after = comp.flipReview(state)
+  assert.equal(after.shown, true, '翻面之后要显示正文')
+  assert.equal(after.i, 1, '还停在这一张')
+  assert.equal(after.scopeId, 'ch1', '范围不能被丢掉，否则「再来一轮」会变成整张图')
+  assert.deepEqual(after.graded, { a: 0, b: 1 }, '本轮成绩不能被丢掉')
+  assert.deepEqual(state.graded, { a: 0, b: 1 }, '不改原对象')
+  assert.equal(comp.flipReview(null), null)
+})
+
+test('「再来一遍模糊的」取 0 分与 1 分，顺序不变', () => {
+  const state = { queue: ['a', 'b', 'c', 'd'], graded: { a: 0, b: 2, c: 1, d: 2 }, i: 4, shown: false }
+  assert.deepEqual(comp.weakReview(state), ['a', 'c'])
+  assert.deepEqual(comp.weakReview({ queue: ['a'], graded: {} }), [])
+  assert.deepEqual(comp.weakReview(null), [])
 })
 
 test('复习排序：模糊 → 复习过没印象 → 没学过 → 已掌握', () => {

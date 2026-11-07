@@ -58,7 +58,7 @@ Click "析域" in the sidebar and the panel takes over the main area.
 
 **Learning path**: select a concept and click "学习路径" to get its hard prerequisites in order on the right — a topological order when there are no cycles. "A → B" gives the shortest chain from any starting concept. The camera pulls back so the whole chain fits, with the cards on it ringed in gold.
 
-**Two papers**: light is cream paper, dark is night paper, both with a paper grain. The button in the top bar switches in place and remembers your choice; on first install it follows the host's light or dark theme.
+**Two papers**: light is cream paper, dark is night paper, both with a paper grain. The button in the top bar switches in place and remembers your choice; on first install it follows the host's light or dark theme. "设置" lets you pick the paper (cream / grey / pale green), the typeface (system / Kai / Song / Hei — system is the default because Kai is missing on many Linux boxes), the text size, and a tone slider that lightens or darkens the whole sheet.
 
 **Switching and deleting maps**: the library dropdown sits at the far left of the top bar. Switching reloads and re-frames the map. Delete needs two clicks — the first arms it, four seconds without a second click disarms it. Deleted files aren't destroyed; they move into `.trash/` inside the library folder.
 

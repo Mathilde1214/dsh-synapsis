@@ -36,6 +36,21 @@ function createMindMap(React) {
   /* 复习排序：先「有点模糊」，再「复习过还是没印象」，再「压根没学过」，最后「会了」。
      「没学过」与「复习后没印象」不再混成同一档：前者 mastery 还是 0 且从没评过，
      后者 mastery 是 0 但 lastReviewed 有值（点过「没印象」）。 */
+  /* 复习状态是纯对象：翻面只改 shown，别的字段（queue / i / graded / scopeId）必须原样带走。
+     以前这里新建了 {queue, i, shown}，一翻面「只复习这一支」和本轮成绩就丢了。 */
+  function flipReview(state) {
+    return state ? Object.assign({}, state, { shown: true }) : state
+  }
+
+  /* 这一轮里打了 0 分或 1 分的，按原顺序取出来——「再来一遍模糊的」用 */
+  function weakReview(state) {
+    if (!state || !Array.isArray(state.queue)) return []
+    var graded = state.graded || {}
+    return state.queue.filter(function (id) {
+      return graded[id] === 0 || graded[id] === 1
+    })
+  }
+
   function sortReviewPool(nodes, scopeIds) {
     var inScope = scopeIds && scopeIds.size ? scopeIds : null
     var pool = (nodes || []).filter(function (n) {
@@ -343,7 +358,7 @@ function createMindMap(React) {
     'color:var(--sn-ink-2);cursor:pointer;white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis;}',
     '.sn-crumb[data-on="1"]{color:var(--sn-ink);font-weight:700;}',
     '.sn-sep{color:var(--sn-ink-3);font-size:12px;flex:none;}',
-    '.sn-status{font-size:11.5px;color:var(--sn-ink-3);white-space:nowrap;flex:none;}',
+    '.sn-status{font-size:12px;color:var(--sn-ink-3);white-space:nowrap;flex:none;}',
     '.sn-iconbtn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;',
     'border:1px solid transparent;background:transparent;color:var(--sn-ink-2);cursor:pointer;flex:none;}',
     '.sn-body{position:relative;display:flex;flex:1;min-height:0;}',
@@ -407,7 +422,7 @@ function createMindMap(React) {
     'background:var(--sn-surface);box-shadow:var(--sn-shadow-panel);font-size:12px;}',
     '.sn-edgebar-title{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sn-ink-2);}',
     '.sn-edgebar-kinds{display:flex;gap:6px;}',
-    '.sn-mut{font-size:11.5px;color:var(--sn-ink-3);}',
+    '.sn-mut{font-size:12px;color:var(--sn-ink-3);}',
     '.sn-note{width:100%;box-sizing:border-box;min-height:76px;resize:vertical;font:inherit;font-size:13px;line-height:1.6;',
     'padding:8px 9px;border-radius:8px;border:1px dashed var(--sn-line);background:var(--sn-surface);color:inherit;}',
     '.sn-note:focus{outline:none;border-color:var(--sn-line-strong);background:var(--sn-surface);}',
@@ -437,8 +452,8 @@ function createMindMap(React) {
     '.sn-pathstep[data-last="1"] .sn-pathnum{background:#9a6b3f;color:#fff;border-color:#9a6b3f;}',
     '.sn-pathtxt{display:flex;flex-direction:column;gap:2px;min-width:0;}',
     '.sn-pathtitle{font-size:13.5px;color:var(--sn-ink);}',
-    '.sn-pathsum{font-size:11.5px;line-height:1.45;color:var(--sn-ink-3);}',
-    '.sn-pathsub{font-size:11.5px;line-height:1.6;color:var(--sn-ink-3);margin-top:4px;}',
+    '.sn-pathsum{font-size:12px;line-height:1.45;color:var(--sn-ink-3);}',
+    '.sn-pathsub{font-size:12px;line-height:1.6;color:var(--sn-ink-3);margin-top:4px;}',
     '.sn-card[data-path="1"]{box-shadow:0 0 0 2px rgba(154,107,63,.42),0 10px 20px -16px rgba(60,40,20,.7);}',
     '.sn-root[data-theme="dark"] .sn-pathtitle{color:#efe7d8;}',
     '.sn-root[data-theme="dark"] .sn-pathsum,.sn-root[data-theme="dark"] .sn-pathsub{color:#a89a84;}',
@@ -495,7 +510,7 @@ function createMindMap(React) {
     'background:var(--sn-surface,#fffaf0);border:1px solid var(--sn-line,rgba(120,100,70,.24));',
     'box-shadow:var(--sn-shadow-panel,0 18px 48px rgba(60,45,28,.3));}',
     '.sn-rvhead{display:flex;align-items:baseline;gap:10px;font-size:12px;color:var(--sn-ink-3,#8c8071);',
-    '.sn-rvscope{margin-left:2px;padding:1px 7px;border-radius:999px;font-size:11.5px;',
+    '.sn-rvscope{margin-left:2px;padding:1px 7px;border-radius:999px;font-size:12px;',
     'background:var(--sn-paper-2,#f6f1e6);border:1px solid var(--sn-line-2,rgba(120,100,70,.16));color:var(--sn-ink-2,#5c5142);}',
     'cursor:move;user-select:none;touch-action:none;}',
     '.sn-rvtitle{margin:8px 0 4px;font-size:calc(22px * var(--sn-fs,1));font-weight:700;letter-spacing:.02em;}',
@@ -536,12 +551,12 @@ function createMindMap(React) {
     '.sn-setrow{float:left;clear:both;margin:14px 10px 0 0;}',
     '.sn-setlabel{display:inline-block;font-size:12px;opacity:.6;vertical-align:middle;}',
     '.sn-setopts{float:left;display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px;margin:14px 0 0;vertical-align:middle;}',
-    '.sn-sethint{font-size:11.5px;opacity:.55;}',
+    '.sn-sethint{font-size:12px;opacity:.55;}',
     '.sn-setrange{width:132px;accent-color:var(--sn-accent);}',
     '.sn-impdlg{max-width:520px;}',
     '.sn-implabel{margin:12px 0 4px!important;font-size:12px!important;font-weight:700;opacity:.8!important;}',
     '.sn-impcode{margin:0;padding:9px 11px;border-radius:8px;font-family:ui-monospace,Menlo,Consolas,monospace;',
-    'font-size:11.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;',
+    'font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;',
     'background:rgba(120,100,70,.1);border:1px solid var(--sn-line-2);}',
     '.sn-impdir{user-select:all;}',
     /* dark */
@@ -770,7 +785,10 @@ function createMindMap(React) {
     },
   }
 
+  /* 默认用「系统」而不是楷体：Windows 有楷体，Linux 上常常没有，
+     整段会退回到一个很陌生的衬线体。想要纸感的人可以自己选楷体。 */
   var FONT_STACKS = {
+    sys: "system-ui,-apple-system,'Segoe UI','Microsoft YaHei','PingFang SC','Noto Sans CJK SC','Source Han Sans SC',sans-serif",
     kai: "'KaiTi','STKaiti','Kaiti SC','Songti SC',serif",
     song: "'Songti SC','SimSun','STSong','Noto Serif SC',serif",
     hei: "'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif",
@@ -778,7 +796,7 @@ function createMindMap(React) {
 
   var FONT_SCALES = { s: 0.94, m: 1, l: 1.12 }
 
-  var APPEARANCE_DEFAULT = { paper: 'cream', font: 'kai', size: 'm', tone: 0 }
+  var APPEARANCE_DEFAULT = { paper: 'cream', font: 'sys', size: 'm', tone: 0 }
   var APPEARANCE_KEY = 'synapsis.appearance'
 
   function readAppearance() {
@@ -1135,9 +1153,7 @@ function createMindMap(React) {
     var reviewAgainWeak = useCallback(
       function () {
         if (!review) return
-        var weak = review.queue.filter(function (id) {
-          return review.graded[id] === 0 || review.graded[id] === 1
-        })
+        var weak = weakReview(review)
         if (!weak.length) return
         setReview({ queue: weak, graded: {}, scopeId: review.scopeId, i: 0, shown: false })
         setRvPos({ x: 0, y: 0 })
@@ -1501,6 +1517,8 @@ function createMindMap(React) {
        键盘用户不该被扔回页面开头。 */
     useEffect(
       function () {
+        /* 依赖里只看「有没有弹窗」，不看 review 对象本身：每翻一张卡都重建 review 时，
+        焦点会被拽回第一个按钮，翻面就白翻了。 */
         var open = settingsOpen || importOpen || !!review || !!pendingDelete
         if (!open) return
         var back = document.activeElement
@@ -1515,7 +1533,7 @@ function createMindMap(React) {
           if (back && typeof back.focus === 'function' && document.contains(back)) back.focus()
         }
       },
-      [settingsOpen, importOpen, review, pendingDelete],
+      [settingsOpen, importOpen, !!review, !!pendingDelete],
     )
 
     useEffect(function () {
@@ -3435,9 +3453,7 @@ function createMindMap(React) {
                           { className: 'sn-rvacts' },
                           total
                             ? (function () {
-                                var weak = review.queue.filter(function (id) {
-                                  return review.graded[id] === 0 || review.graded[id] === 1
-                                })
+                                var weak = weakReview(review)
                                 return weak.length
                                   ? h(
                                       'button',
@@ -3487,7 +3503,7 @@ function createMindMap(React) {
                                   className: 'sn-rvbtn',
                                   'data-main': '1',
                                   onClick: function () {
-                                    setReview({ queue: review.queue, i: review.i, shown: true })
+                                    setReview(flipReview(review))
                                   },
                                 },
                                 '显示答案',
@@ -3687,6 +3703,7 @@ function createMindMap(React) {
                 'div',
                 { className: 'sn-setopts' },
                 [
+                  ['sys', '系统'],
                   ['kai', '楷体'],
                   ['song', '宋体'],
                   ['hei', '黑体'],
@@ -3865,6 +3882,8 @@ function createMindMap(React) {
     fitFor: fitFor,
     createMathRenderer: createMathRenderer,
     sortReviewPool: sortReviewPool,
+    flipReview: flipReview,
+    weakReview: weakReview,
   }
 }
 
@@ -4103,8 +4122,10 @@ function Panel() {
           return true
         }
       }
-      /* 到上限还有更新的编辑没落盘：必须如实返回 false，切图 / 删除才不会放行 */
-      setStatus('还在保存…')
+      /* 到上限还有更新的编辑没落盘：如实返回 false，切图 / 删除才不会放行；
+         同时把状态说清楚并给一个重试入口，别让「还在保存…」一直挂着。 */
+      setStatus('还有改动没写进去（保存排队超时）')
+      setToast({ text: '还有改动没写进去', kind: 'retry' })
       return false
     }
 
@@ -4246,7 +4267,17 @@ function Panel() {
             setStatus('文件已被外部修改')
           }
         })
-        .catch(() => {})
+        .catch((err) => {
+          /* 文件已经不在了：不能默默吞掉，否则要等到下次保存才看见提示。
+             这里直接摆出 gone 横幅，并顺手刷新一次列表（下拉里那张图会消失）。 */
+          if (err && err.code === 'not_found') {
+            setConflict({ token: null, mtime: null, name: current, gone: true })
+            setStatus('文件在别处被删掉了，可以另存为新图')
+            jget('/synapsis-api/list')
+              .then((list) => setFiles((list && list.items) || []))
+              .catch(() => {})
+          }
+        })
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
@@ -4293,7 +4324,14 @@ function Panel() {
     const doc = docRef.current
     if (!doc) return
     const base = (nameRef.current || '未命名图').replace(/\.mindmap\.json$/, '')
-    const copy = { ...doc, title: (doc.title || base) + '（副本）' }
+    const copyTitle = (doc.title || base) + '（副本）'
+    /* 根节点标题也改成「（副本）」：否则下拉里叫副本、画布上还是旧名字 */
+    const rootId = (doc.nodes.find((x) => x.parent === null) || doc.nodes[0] || {}).id
+    const copy = {
+      ...doc,
+      title: copyTitle,
+      nodes: doc.nodes.map((x) => (x.id === rootId ? { ...x, title: copyTitle } : x)),
+    }
     setStatus('另存中…')
     try {
       const res = await fetch('/synapsis-api/create', {

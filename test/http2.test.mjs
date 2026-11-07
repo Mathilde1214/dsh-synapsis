@@ -102,3 +102,44 @@ test('历史接口：能列出并恢复到旧版本', async (t) => {
   const after = await (await fetch(ctx.base + '/synapsis-api/load?name=' + encodeURIComponent(made.name))).json()
   assert.equal(after.data.nodes[0].title, '历史接口')
 })
+
+test('另存为副本：面板实际发的那份请求能成功，且原文件不会被写回来', async (t) => {
+  const ctx = await boot(t)
+  const made = await (await post(ctx.base + '/synapsis-api/create', { title: '副本来源' })).json()
+  const loaded = await (await fetch(ctx.base + '/synapsis-api/load?name=' + encodeURIComponent(made.name))).json()
+
+  /* 面板「另存为新图」发的就是 { title, data }，没有 name */
+  const copyDoc = { ...loaded.data, title: '副本来源（副本）' }
+  const res = await post(ctx.base + '/synapsis-api/create', { title: copyDoc.title, data: copyDoc })
+  assert.equal(res.status, 200, '标题带括号也不能被 safeName 拒掉')
+  const copy = await res.json()
+  assert.match(copy.name, /\.mindmap\.json$/, '新文件名要带后缀：' + copy.name)
+  assert.notEqual(copy.name, made.name)
+
+  /* 原文件还在（本来就该在），但内容没被副本覆盖 */
+  const original = await (await fetch(ctx.base + '/synapsis-api/load?name=' + encodeURIComponent(made.name))).json()
+  assert.equal(original.data.title, '副本来源')
+
+  /* 再另存一次，不能覆盖上一份副本 */
+  const second = await (await post(ctx.base + '/synapsis-api/create', { title: copyDoc.title, data: copyDoc })).json()
+  assert.notEqual(second.name, copy.name, '同名副本要自动避开：' + second.name)
+  assert.match(second.name, /\.mindmap\.json$/)
+})
+
+test('另存为副本：原文件被删之后也能另存，不会把原文件写回来', async (t) => {
+  const ctx = await boot(t)
+  const made = await (await post(ctx.base + '/synapsis-api/create', { title: '被删的图' })).json()
+  const loaded = await (await fetch(ctx.base + '/synapsis-api/load?name=' + encodeURIComponent(made.name))).json()
+  await post(ctx.base + '/synapsis-api/delete', { name: made.name })
+
+  const copyDoc = { ...loaded.data, title: '被删的图（副本）' }
+  const res = await post(ctx.base + '/synapsis-api/create', { title: copyDoc.title, data: copyDoc })
+  assert.equal(res.status, 200)
+  const copy = await res.json()
+  assert.match(copy.name, /\.mindmap\.json$/)
+
+  const list = await (await fetch(ctx.base + '/synapsis-api/list')).json()
+  const names = list.items.map((x) => x.name)
+  assert.ok(!names.includes(made.name), '被删掉的原文件不该被写回来')
+  assert.ok(names.includes(copy.name))
+})
