@@ -502,6 +502,7 @@ function createMindMap(React) {
     'max-width:calc(100% - 36px);padding:6px 10px;border-radius:999px;border:1px solid var(--sn-line);',
     'background:var(--sn-surface);box-shadow:var(--sn-shadow-panel);font-size:12px;}',
     '.sn-edgebar-title{max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sn-ink-2);}',
+    '.sn-edgebar-note{font-size:12px;opacity:.55;white-space:nowrap;}',
     '.sn-edgebar-kinds{display:flex;gap:6px;}',
     '.sn-mut{font-size:12px;color:var(--sn-ink-3);}',
     '.sn-note{width:100%;box-sizing:border-box;min-height:76px;resize:vertical;font:inherit;font-size:13px;line-height:1.6;',
@@ -537,7 +538,7 @@ function createMindMap(React) {
     '.sn-pathsub{font-size:12px;line-height:1.6;color:var(--sn-ink-3);margin-top:4px;}',
     '.sn-card[data-path="1"]{box-shadow:0 0 0 2px rgba(154,107,63,.42),0 10px 20px -16px rgba(60,40,20,.7);}',
     /* 多选：和 path 的金圈区分开，用青色描边 */
-    '.sn-card[data-multi="1"]{box-shadow:0 0 0 2px rgba(32,150,130,.75),0 10px 20px -16px rgba(20,80,70,.6);}',
+    '.sn-card[data-multi="1"]{box-shadow:0 0 0 2.5px rgba(32,150,130,.95),0 10px 22px -16px rgba(16,90,78,.7);}',
     '.sn-root[data-theme="dark"] .sn-pathtitle{color:#efe7d8;}',
     '.sn-root[data-theme="dark"] .sn-pathsum,.sn-root[data-theme="dark"] .sn-pathsub{color:#a89a84;}',
     '.sn-root[data-theme="dark"] .sn-pathnum{color:#e8c184;border-color:rgba(232,193,132,.5);}',
@@ -3499,7 +3500,7 @@ function createMindMap(React) {
                 h(
                   'span',
                   { className: 'sn-edgebar-kinds' },
-                  h('span', { className: 'sn-hint', style: { margin: 0 } }, '⌘/Ctrl 点卡片可增删'),
+                  h('span', { className: 'sn-edgebar-note' }, '⌘/Ctrl 点卡片可增删'),
                   h(
                     'button',
                     {
