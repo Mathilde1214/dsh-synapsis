@@ -106,6 +106,45 @@ function createMindMap(React) {
     })
   }
 
+  /* 批量删除：选中的节点拿掉，子节点上提到「第一个活着的祖先」，边跟着清。
+     根节点不允许被批量删（整张图会空），这里直接跳过。 */
+  function pruneMany(nodes, edges, ids, rootId) {
+    var dead = Object.create(null)
+    for (var i = 0; i < (ids || []).length; i++) {
+      var id = ids[i]
+      if (!id || id === rootId) continue
+      dead[id] = true
+    }
+    var byId = Object.create(null)
+    for (var j = 0; j < nodes.length; j++) byId[nodes[j].id] = nodes[j]
+    var liftOf = function (id) {
+      var seen = Object.create(null)
+      var cur = byId[id] ? byId[id].parent : null
+      while (cur && dead[cur] && !seen[cur]) {
+        seen[cur] = true
+        cur = byId[cur] ? byId[cur].parent : null
+      }
+      return cur || rootId
+    }
+    var outNodes = []
+    for (var k = 0; k < nodes.length; k++) {
+      var n = nodes[k]
+      if (dead[n.id]) continue
+      if (n.parent && dead[n.parent]) {
+        var copy = {}
+        for (var key in n) copy[key] = n[key]
+        copy.parent = liftOf(n.id)
+        outNodes.push(copy)
+      } else {
+        outNodes.push(n)
+      }
+    }
+    var outEdges = (edges || []).filter(function (e) {
+      return !dead[e.from] && !dead[e.to]
+    })
+    return { nodes: outNodes, edges: outEdges, removed: Object.keys(dead) }
+  }
+
   /* ---------------------------------------------------------------- */
   /* geometry                                                          */
   /* ---------------------------------------------------------------- */
@@ -490,6 +529,8 @@ function createMindMap(React) {
     '.sn-pathsum{font-size:12px;line-height:1.45;color:var(--sn-ink-3);}',
     '.sn-pathsub{font-size:12px;line-height:1.6;color:var(--sn-ink-3);margin-top:4px;}',
     '.sn-card[data-path="1"]{box-shadow:0 0 0 2px rgba(154,107,63,.42),0 10px 20px -16px rgba(60,40,20,.7);}',
+    /* 多选：和 path 的金圈区分开，用青色描边 */
+    '.sn-card[data-multi="1"]{box-shadow:0 0 0 2px rgba(32,150,130,.75),0 10px 20px -16px rgba(20,80,70,.6);}',
     '.sn-root[data-theme="dark"] .sn-pathtitle{color:#efe7d8;}',
     '.sn-root[data-theme="dark"] .sn-pathsum,.sn-root[data-theme="dark"] .sn-pathsub{color:#a89a84;}',
     '.sn-root[data-theme="dark"] .sn-pathnum{color:#e8c184;border-color:rgba(232,193,132,.5);}',
@@ -1688,6 +1729,11 @@ function createMindMap(React) {
             setEdgeSel(null)
             return
           }
+          /* 多选时 Esc 先清选择，不关面板 */
+          if (multiRef.current && multiRef.current.length) {
+            clearMulti()
+            return
+          }
           if (A.closeReview && A.closeReview()) return
           if (A.closePanels && A.closePanels()) return
           if (A.closeExport && A.closeExport()) return
@@ -2127,7 +2173,44 @@ function createMindMap(React) {
       commitData(nodes, edges, 'delete:' + id)
     }, [collectDescendants, commitData, data, layout, nodesById, selectedId])
 
-    /* ---------------- 导出：整张图 → SVG / PNG / Markdown 大纲 ---------------- */
+    /* ---------------- 多选：⌘/Ctrl 点选，然后整批删 ---------------- */
+
+    var multiState = useState([])
+    var multi = multiState[0]
+    var setMulti = multiState[1]
+    var multiRef = useRef(multi)
+    multiRef.current = multi
+
+    var toggleMulti = useCallback(
+      function (id) {
+        if (!id) return
+        var cur = multiRef.current || []
+        /* 第一次 ⌘ 点：把当前选中的那个也拉进来，否则用户会以为「先点的那个也算」 */
+        if (!cur.length && selectedId && selectedId !== id) cur = [selectedId]
+        var at = cur.indexOf(id)
+        var next = at >= 0 ? cur.slice(0, at).concat(cur.slice(at + 1)) : cur.concat([id])
+        multiRef.current = next
+        setMulti(next)
+      },
+      [selectedId],
+    )
+
+    var clearMulti = useCallback(function () {
+      if (!multiRef.current || !multiRef.current.length) return
+      multiRef.current = []
+      setMulti([])
+    }, [])
+
+    var deleteMulti = useCallback(function () {
+      var ids = multiRef.current || []
+      if (!ids.length || !layout) return
+      var plan = pruneMany(data.nodes, data.edges || [], ids, layout.root.id)
+      clearMulti()
+      setSelectedId('')
+      commitData(plan.nodes, plan.edges, 'delete-many')
+    }, [clearMulti, commitData, data, layout])
+
+    /* 导出：整张图 → SVG / PNG / Markdown 大纲 ------------ */
 
     var EXPORT_INK = '#2f2a24'
     var EXPORT_INK2 = '#6b5f4e'
@@ -2634,10 +2717,13 @@ function createMindMap(React) {
               'data-dot': detail === 3 ? '1' : '0',
               'data-dragging': moving && moving.id === node.id ? '1' : '0',
               'data-drop': moving && moving.over === node.id ? '1' : '0',
+              'data-multi': multi.indexOf(node.id) >= 0 ? '1' : '0',
               onPointerDown: function (id) {
                 return function (event) {
                   if (!editable) return
                   if (event.button !== 0) return
+                  /* ⌘/Ctrl 是「多选」，别把它当成拖拽或连边 */
+                  if (event.metaKey || event.ctrlKey) return
                   if (event.shiftKey) {
                     event.stopPropagation()
                     event.preventDefault()
@@ -2651,6 +2737,11 @@ function createMindMap(React) {
               onClick: function (id) {
                 return function (event) {
                   event.stopPropagation()
+                  if (event.metaKey || event.ctrlKey) {
+                    toggleMulti(id)
+                    return
+                  }
+                  clearMulti()
                   setEdgeSel(null)
                   setSelectedId(id)
                   if (props.onSelect) props.onSelect(id)
@@ -3058,6 +3149,37 @@ function createMindMap(React) {
             'button',
             {
               className: 'sn-chip',
+              onClick: function () {
+                /* 把当前概念整理成一段可以直接粘进对话的问题 */
+                var n = selected
+                var crumbs = []
+                var cur = n
+                var guard = 0
+                while (cur && guard < 32) {
+                  crumbs.unshift(cur.title || '')
+                  cur = cur.parent ? nodesById.get(cur.parent) : null
+                  guard += 1
+                }
+                var lines = ['我在学《' + (data.title || '这张图') + '》里的「' + (n.title || '') + '」' + (crumbs.length > 1 ? '（' + crumbs.slice(0, -1).join(' › ') + '）' : '') + '。']
+                if (n.summary) lines.push('一句话：' + n.summary)
+                if (n.definition) lines.push('书上说：' + n.definition)
+                if (n.pitfalls) lines.push('我容易错在：' + n.pitfalls)
+                lines.push('请用最少的字把它讲清楚：它到底在解决什么问题、和我已知的哪个概念最容易混、再给我一个能自己验算的小例子。')
+                var text = lines.join('\n')
+                if (typeof props.onAskAI === 'function') {
+                  props.onAskAI(text)
+                } else if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(text)
+                }
+              },
+              title: '把当前概念整理成一个问题（复制到剪贴板）',
+            },
+            '复制提问',
+          ),
+          h(
+            'button',
+            {
+              className: 'sn-chip',
               onClick: function () { startReview(selected.id) },
               title: '只复习这一支下面写了正文的概念',
             },
@@ -3289,6 +3411,7 @@ function createMindMap(React) {
               setSelectedId('')
               setEdgeSel(null)
               setExportOpen(false)
+              clearMulti()
             },
           },
           edgeSel && editable
@@ -3355,6 +3478,43 @@ function createMindMap(React) {
                   ),
                 )
               })()
+            : null,
+          multi.length && !edgeSel
+            ? h(
+                'div',
+                {
+                  className: 'sn-edgebar',
+                  onClick: function (event) {
+                    event.stopPropagation()
+                  },
+                },
+                h('span', { className: 'sn-edgebar-title' }, '已选 ' + multi.length + ' 个概念'),
+                h(
+                  'span',
+                  { className: 'sn-edgebar-kinds' },
+                  h('span', { className: 'sn-hint', style: { margin: 0 } }, '⌘/Ctrl 点卡片可增删'),
+                  h(
+                    'button',
+                    {
+                      className: 'sn-chip sn-chip-danger',
+                      onClick: function () {
+                        deleteMulti()
+                      },
+                    },
+                    '一次删掉',
+                  ),
+                  h(
+                    'button',
+                    {
+                      className: 'sn-chip',
+                      onClick: function () {
+                        clearMulti()
+                      },
+                    },
+                    '取消',
+                  ),
+                ),
+              )
             : null,
           h(
           'div',
@@ -3997,5 +4157,6 @@ function createMindMap(React) {
     gradePlan: gradePlan,
     isDue: isDue,
     dueAtOf: dueAtOf,
+    pruneMany: pruneMany,
   }
 }

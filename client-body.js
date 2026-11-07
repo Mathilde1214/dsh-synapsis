@@ -1082,6 +1082,37 @@ function Panel() {
         renderMath,
         statusText,
         onChange,
+        onAskAI: (text) => {
+          /* 先试异步剪贴板；被权限挡住时退回 execCommand（桌上浏览器一般都行） */
+          const fallback = () => {
+            try {
+              const ta = document.createElement('textarea')
+              ta.value = text
+              ta.setAttribute('readonly', '')
+              ta.style.cssText = 'position:fixed;left:-9999px;top:0'
+              document.body.appendChild(ta)
+              ta.select()
+              const ok = document.execCommand('copy')
+              ta.remove()
+              return ok
+            } catch {
+              return false
+            }
+          }
+          const announce = (ok) =>
+            setToast(
+              ok
+                ? { text: '问题已复制，粘到左边对话里问我就行', kind: 'info' }
+                : { text: '复制没成功——手动选中侧栏那段文字也行', kind: 'retry' },
+            )
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text).then(
+              () => announce(true),
+              () => announce(fallback()),
+            )
+          }
+          return Promise.resolve(announce(fallback()))
+        },
       }),
     ),
     banner,

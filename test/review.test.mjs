@@ -175,6 +175,44 @@ test('isDue / dueAtOf 对坏值不炸', () => {
   assert.equal(comp.dueAtOf({ dueAt: '2026-01-01T00:00:00.000Z' }) > 0, true)
 })
 
+test('批量删除：子节点上提到最近活着的祖先，边一起清', () => {
+  const nodes = [
+    { id: 'root', parent: null, title: 'r' },
+    { id: 'a', parent: 'root', title: 'a' },
+    { id: 'a1', parent: 'a', title: 'a1' },
+    { id: 'a2', parent: 'a1', title: 'a2' },
+    { id: 'b', parent: 'root', title: 'b' },
+  ]
+  const edges = [
+    { from: 'a', to: 'b', type: 'related' },
+    { from: 'a2', to: 'b', type: 'prereq' },
+    { from: 'a', to: 'a1', type: 'related' },
+  ]
+  const plan = comp.pruneMany(nodes, edges, ['a'], 'root')
+  const byId = Object.fromEntries(plan.nodes.map((n) => [n.id, n]))
+  assert.equal(byId.a, undefined, '被删的节点不在了')
+  assert.equal(byId.a1.parent, 'root', '子节点挂到 a 的父级')
+  assert.equal(byId.a2.parent, 'a1', '孙子不受影响')
+  assert.deepEqual(
+    plan.edges.map((e) => e.from + '>' + e.to),
+    ['a2>b'],
+    '碰到被删节点的边被清掉',
+  )
+  assert.deepEqual(plan.removed, ['a'])
+})
+
+test('批量删除：根节点删不掉，多级祖先被删时一路往上提', () => {
+  const nodes = [
+    { id: 'root', parent: null, title: 'r' },
+    { id: 'a', parent: 'root', title: 'a' },
+    { id: 'a1', parent: 'a', title: 'a1' },
+    { id: 'a1x', parent: 'a1', title: 'a1x' },
+  ]
+  const plan = comp.pruneMany(nodes, [], ['root', 'a', 'a1'], 'root')
+  assert.deepEqual(plan.removed, ['a', 'a1'], 'root 被跳过')
+  assert.equal(plan.nodes.find((n) => n.id === 'a1x').parent, 'root', '跳过两层已删祖先')
+})
+
 test('排序不会改动调用方传进来的数组', () => {
   const input = [n('b', 1), n('a', 1)]
   const snapshot = input.map((x) => x.id)
