@@ -693,6 +693,8 @@ function createMindMap(React) {
     /* 学习路径：夜里也要一眼看见（金边 + 外发光），无关的卡片和线退到很暗 */
     '.sn-root[data-theme="dark"] .sn-card[data-path="1"],.sn-root[data-theme="dark"] .sn-card[data-path="1"]{border-color:rgba(240,200,130,.95);background:#3a3128;color:#fdf6e8;box-shadow:0 0 0 2px rgba(240,200,130,.9),0 0 26px rgba(240,200,130,.34);}',
     '.sn-root[data-theme="dark"] .sn-card[data-dim="1"],.sn-root[data-theme="dark"] .sn-card[data-dim="1"]{opacity:.3;}',
+    /* 多选描边要压过 dark 下别处给的 box-shadow，否则夜里看不出哪几张被选中 */
+    '.sn-root[data-theme="dark"] .sn-card[data-multi="1"]{box-shadow:0 0 0 2.5px rgba(64,206,180,.95),0 10px 22px -16px rgba(4,58,50,.85);}',
     /* 顶栏这排在「日光纸」下必须用纸上的墨色：宿主的 label token 是给深色底用的，套在米黄底上根本看不清 */
     '.sn-root[data-theme="light"] .sn-topbar{color:#2f2a24;}',
     '.sn-root[data-theme="light"] .sn-topbar .sn-crumb{color:#6b5f4e;}',
@@ -1450,6 +1452,20 @@ function createMindMap(React) {
         animateTo(target)
       },
       [layout, animateTo, applyCamera],
+    )
+
+    /* 从对话那边「让我跳到某个概念」：props.focusRequest = { id, at } */
+    var focusAppliedRef = useRef(0)
+    useEffect(
+      function () {
+        var req = props.focusRequest
+        if (!req || !req.id || !req.at || req.at <= focusAppliedRef.current) return
+        if (!layout || !layout.byId.get(req.id)) return
+        focusAppliedRef.current = req.at
+        setSelectedId(req.id)
+        focusOn(req.id, true)
+      },
+      [props.focusRequest, layout, focusOn],
     )
 
     /* 换根之后，布局会重算：等新布局落地再对准镜头 */
@@ -2210,6 +2226,24 @@ function createMindMap(React) {
       setSelectedId('')
       commitData(plan.nodes, plan.edges, 'delete-many')
     }, [clearMulti, commitData, data, layout])
+
+    var setMasteryMany = useCallback(
+      function (level) {
+        var ids = multiRef.current || []
+        if (!ids.length) return
+        var marked = Object.create(null)
+        for (var i = 0; i < ids.length; i++) marked[ids[i]] = true
+        var nodes = data.nodes.map(function (n) {
+          if (!marked[n.id]) return n
+          var copy = {}
+          for (var k in n) copy[k] = n[k]
+          copy.mastery = level
+          return copy
+        })
+        commitData(nodes, data.edges || [], 'mastery-many')
+      },
+      [commitData, data],
+    )
 
     /* 导出：整张图 → SVG / PNG / Markdown 大纲 ------------ */
 
@@ -3490,10 +3524,23 @@ function createMindMap(React) {
                   },
                 },
                 h('span', { className: 'sn-edgebar-title' }, '已选 ' + multi.length + ' 个概念'),
-                h(
-                  'span',
-                  { className: 'sn-edgebar-kinds' },
+                h('span', { className: 'sn-edgebar-kinds' },
                   h('span', { className: 'sn-edgebar-note' }, '⌘/Ctrl 点卡片可增删'),
+                  h('button', {
+                    className: 'sn-chip',
+                    title: '把这几个都标成「未读」',
+                    onClick: function () { setMasteryMany(0) },
+                  }, '未读'),
+                  h('button', {
+                    className: 'sn-chip',
+                    title: '把这几个都标成「模糊」',
+                    onClick: function () { setMasteryMany(1) },
+                  }, '模糊'),
+                  h('button', {
+                    className: 'sn-chip',
+                    title: '把这几个都标成「会了」',
+                    onClick: function () { setMasteryMany(2) },
+                  }, '会了'),
                   h(
                     'button',
                     {

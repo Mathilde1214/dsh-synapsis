@@ -113,6 +113,9 @@ function Panel() {
   const [histTrash, setHistTrash] = React.useState([])
   const [histBusy, setHistBusy] = React.useState('')
   const [dir, setDir] = React.useState('')
+  /* 从对话那边发来的「跳到这里」意图：{ id, at } */
+  const [focusReq, setFocusReq] = React.useState(null)
+  const focusSeenRef = React.useRef(Number(window.localStorage.getItem('synapsis.focusSeen')) || 0)
   const [darkHost, setDarkHost] = React.useState(hostDark)
   const [themeMode, setThemeMode] = React.useState(() => {
     try {
@@ -337,6 +340,40 @@ function Panel() {
 
   React.useEffect(() => {
     openNamed('')
+  }, [openNamed])
+
+  /* 轮询「跳到某个概念」的意图：面板开着才轮询，窗口切回来时立刻补一次。
+     意图文件由 synapsis_focus_map 工具写，at 是毫秒时间戳。 */
+  React.useEffect(() => {
+    let timer = null
+    let stopped = false
+    const tick = async () => {
+      if (stopped || document.visibilityState === 'hidden') return
+      try {
+        const payload = await jget('/synapsis-api/focus')
+        const next = payload && payload.focus
+        if (next && next.at && next.at > focusSeenRef.current) {
+          focusSeenRef.current = next.at
+          window.localStorage.setItem('synapsis.focusSeen', String(next.at))
+          if (next.name && next.name !== nameRef.current) {
+            await openNamed(next.name)
+          }
+          if (next.nodeId) setFocusReq({ id: next.nodeId, at: next.at })
+        }
+      } catch {
+        /* 轮询失败就当没发生，下一轮再说 */
+      }
+    }
+    timer = setInterval(tick, 4000)
+    const onShow = () => tick()
+    window.addEventListener('focus', onShow)
+    document.addEventListener('visibilitychange', onShow)
+    return () => {
+      stopped = true
+      clearInterval(timer)
+      window.removeEventListener('focus', onShow)
+      document.removeEventListener('visibilitychange', onShow)
+    }
   }, [openNamed])
 
   /* 「放弃我的改动，读磁盘上的那份」——不能走 openNamed，因为它会先 flush：
@@ -1082,6 +1119,7 @@ function Panel() {
         renderMath,
         statusText,
         onChange,
+        focusRequest: focusReq,
         onAskAI: (text) => {
           /* 先试异步剪贴板；被权限挡住时退回 execCommand（桌上浏览器一般都行） */
           const fallback = () => {
