@@ -1,6 +1,6 @@
 {
   "name": "dsh-synapsis",
-  "version": "0.23.3",
+  "version": "0.24.0",
   "description": "Synapsis 析域 —— 把讲义铺成一张能走进去的概念图（DSH 官方桌面端插件）",
   "keywords": [
     "dsh",
@@ -37,7 +37,7 @@
     "locale/en.json",
     "locale/zh.json",
     "package.json",
-    "assets/katex/katex.min.js",
+    "assets/katex/katex.mjs",
     "assets/katex/katex.min.css",
     "assets/katex/LICENSE",
     "assets/katex/fonts"

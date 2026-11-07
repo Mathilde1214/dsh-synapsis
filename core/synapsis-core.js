@@ -549,6 +549,17 @@ function createMindMap(React) {
     '.sn-sethint{font-size:12px;opacity:.55;}',
     '.sn-setrange{width:132px;accent-color:var(--sn-accent);}',
     '.sn-impdlg{max-width:520px;}',
+    '.sn-rvhead .sn-rvmore{margin-left:10px;font-size:11.5px;opacity:.62;}',
+    '.sn-histmask{position:absolute;inset:0;z-index:26;display:flex;align-items:flex-start;justify-content:center;padding:56px 16px 16px;background:rgba(40,32,24,.28);}',
+    '.sn-histcard{width:min(620px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;background:var(--sn-surface,#fffdf6);color:var(--sn-ink,#2f2a24);border:1px solid var(--sn-line,rgba(120,100,70,.24));border-radius:10px;box-shadow:0 18px 42px rgba(0,0,0,.26);padding:16px 20px 18px;}',
+    '.sn-histhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;}',
+    '.sn-histhead span{font-size:15px;font-weight:700;}',
+    '.sn-histbusy{font-size:12.5px;opacity:.72;margin:4px 0 8px;}',
+    '.sn-histsect{margin-top:14px;}',
+    '.sn-histlabel{font-size:12px;letter-spacing:.04em;opacity:.62;margin-bottom:6px;}',
+    '.sn-histrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px dashed var(--sn-line-2,rgba(120,100,70,.16));}',
+    '.sn-histmeta{font-size:12.5px;opacity:.86;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+    '.sn-histempty{font-size:12.5px;opacity:.6;line-height:1.6;}',
     '.sn-implabel{margin:12px 0 4px!important;font-size:12px!important;font-weight:700;opacity:.8!important;}',
     '.sn-impcode{margin:0;padding:9px 11px;border-radius:8px;font-family:ui-monospace,Menlo,Consolas,monospace;',
     'font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;',
@@ -1122,6 +1133,8 @@ function createMindMap(React) {
           queue: pool.slice(0, 15).map(function (n) {
             return n.id
           }),
+          /* 池子有多大也要记住：卡上要说清「还有多少没进这一轮」 */
+          poolSize: pool.length,
           graded: {},
           scopeId: scopeKey,
           i: 0,
@@ -3415,6 +3428,9 @@ function createMindMap(React) {
                     'div',
                     { className: 'sn-rvhead', onPointerDown: startReviewDrag },
                     h('span', null, total ? (done ? '复习完成' : '复习 ' + (review.i + 1) + ' / ' + total) : '复习'),
+            review.poolSize > total
+              ? h('span', { className: 'sn-rvmore' }, '池里还有 ' + (review.poolSize - total) + ' 个，下一轮接着来')
+              : null,
                     review.scopeId
                       ? h(
                           'span',

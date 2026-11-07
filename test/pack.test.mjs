@@ -36,7 +36,7 @@ test('清单包含插件运行必需的文件', () => {
     'lib/store.mjs',
     'lib/http.mjs',
     'lib/tools.mjs',
-    'assets/katex/katex.min.js',
+    'assets/katex/katex.mjs',
     'assets/katex/katex.min.css',
     'assets/katex/LICENSE',
   ]

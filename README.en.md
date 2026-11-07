@@ -62,6 +62,8 @@ Click "析域" in the sidebar and the panel takes over the main area.
 
 **Switching and deleting maps**: the library dropdown sits at the far left of the top bar. Switching reloads and re-frames the map. Delete needs two clicks — the first arms it, four seconds without a second click disarms it. Deleted files aren't destroyed; they move into `.trash/` inside the library folder.
 
+**History and recycle bin**: "历史" in the top bar lists this map's versions (one per save, plus a checkpoint every five minutes) and the recycle bin. "回到这一版" restores a version — your current content is snapshotted first, so you can come back. "放回来" pulls a deleted map out of the bin; if the name is taken it gets a `-2` instead of overwriting anything.
+
 **Starting from nothing**: "+ 新建" next to the dropdown creates an empty map with a single root node. Press `Tab` to add concepts. Use it when you'd rather build the map by hand than generate it.
 
 **Drag a card to re-parent it**: drag one card onto another and it moves under it. Dropping into its own descendants is refused, since that would cut the tree in two. Dragging empty space still pans.
@@ -236,8 +238,7 @@ npm run dev       # node tools/dev-server.mjs, then open http://127.0.0.1:7788/
 - Multi-select isn't implemented yet. PNG/SVG export covers **the current layer**; Markdown export covers **the whole tree** (walked from the root, handy for feeding other tools).
 - Review only ranks concepts by mastery; there is no real spaced repetition yet — it doesn't remember when you last saw a concept.
 - The outline view is read-only; edits still happen on the canvas.
-- History has an API (`/history`, `/history/restore`) but no UI yet — for now it takes the model or a manual request.
-- `.trash/` only backs the six-second undo after a delete; there is no persistent recycle-bin screen.
+- Review takes fifteen at a time and the card header tells you how many are still waiting, but there is no real spaced-repetition schedule yet.
 - UI copy is Chinese only (`locale/en.json` holds plugin metadata only).
 - Interface copy is Chinese only (`locale/en.json` holds plugin metadata, not UI strings).
 

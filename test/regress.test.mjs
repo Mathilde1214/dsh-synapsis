@@ -241,3 +241,27 @@ test('createFrom 用同一份内容另存不会覆盖已有文件', async () => 
   assert.equal(a.name, '副本.mindmap.json')
   await fs.rm(dir, { recursive: true, force: true })
 })
+
+test('回收站能列出并放回指定那一份', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'syn-trash-'))
+  const store = createStore(dir)
+  const doc = { ...blank('回收'), nodes: [{ id: 'root', title: '回收', parent: null }] }
+  const made = await store.createFrom(doc, '回收.mindmap.json')
+  await store.trash(made.name)
+
+  const list = await store.trashList()
+  assert.equal(list.length, 1)
+  assert.equal(list[0].name, '回收.mindmap.json')
+  assert.ok(list[0].at, '带删除时间')
+
+  /* 名字先被别人占了：放回来时自动让位，不覆盖 */
+  await store.createFrom(doc, '回收.mindmap.json')
+  const back = await store.restoreFile(list[0].file)
+  assert.equal(back.name, '回收-2.mindmap.json')
+  assert.equal((await store.trashList()).length, 0)
+
+  /* 指定的那份不存在时报 not_found；带斜杠的名字直接拒 */
+  await assert.rejects(() => store.restoreFile('nope.mindmap.json.2026-01-01T00-00-00-000Z'), (err) => err.code === 'not_found')
+  await assert.rejects(() => store.restoreFile('../x.mindmap.json'), (err) => err.code === 'bad_name')
+  await fs.rm(dir, { recursive: true, force: true })
+})

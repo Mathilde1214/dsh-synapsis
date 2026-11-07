@@ -1,11 +1,15 @@
-/* 把 tmp/chapters/*.json 合成一份完整的 .mindmap.json */
+/* 把 tmp/chapters/*.json 合成一份完整的 .mindmap.json
+   用法：node tools/merge-chapters.mjs [章节目录] [输出文件] [标题] [副标题]
+   不给输出文件时写进 SYNAPSIS_DATA（没设就是 ~/Synapsis）。 */
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 const dir = process.argv[2] || 'tmp/chapters'
-const out = process.argv[3] || 'E:/dsh工作空间/析域/离散数学（第六版）.mindmap.json'
-const title = process.argv[4] || '离散数学（第六版）'
-const subtitle = process.argv[5] || '耿素云 · 屈婉玲 · 张立昂'
+const home = process.env.SYNAPSIS_DATA || path.join(os.homedir(), 'Synapsis')
+const out = process.argv[3] || path.join(home, '未命名讲义.mindmap.json')
+const title = process.argv[4] || '未命名讲义'
+const subtitle = process.argv[5] || ''
 
 const files = fs.readdirSync(dir).filter((f) => /^ch\d+\.json$/.test(f)).sort((a, b) => {
   return parseInt(a.slice(2), 10) - parseInt(b.slice(2), 10)
@@ -84,9 +88,9 @@ for (const e of edges) {
 
 const doc = {
   version: 1,
-  id: 'shulixue-diliuban',
+  id: title.replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '') || 'merged',
   title,
-  subtitle: subtitle + ' · 清华大学出版社',
+  subtitle,
   updated: new Date().toISOString().slice(0, 10),
   nodes: [root, ...nodes],
   edges: cleanEdges,

@@ -2,20 +2,24 @@
 const MindMap = comp.MindMap
 const hh = h
 
-/* KaTeX 由插件自己的 Host 路由喂进来（宿主模块表里没有它），脚本到位后置位 */
-function useKatexReady() {
-  const [ready, setReady] = React.useState(() => !!window.katex)
+/* KaTeX 由插件自己的 Host 路由喂进来（宿主模块表里没有它）。
+   用 ESM 动态 import，拿到的是模块本身——不往 window 上挂全局变量。 */
+function useKatex() {
+  const [katex, setKatex] = React.useState(null)
   React.useEffect(() => {
-    if (ready) return undefined
-    const on = () => setReady(!!window.katex)
-    window.addEventListener('synapsis:katex', on)
-    const timer = setTimeout(() => setReady(!!window.katex), 1500)
+    let alive = true
+    import('/synapsis-api/katex/katex.mjs')
+      .then((mod) => {
+        if (alive) setKatex(mod && mod.default ? mod.default : mod)
+      })
+      .catch(() => {
+        if (alive) setKatex(null)
+      })
     return () => {
-      window.removeEventListener('synapsis:katex', on)
-      clearTimeout(timer)
+      alive = false
     }
-  }, [ready])
-  return ready
+  }, [])
+  return katex
 }
 
 const ERROR_TEXT = {
@@ -101,6 +105,10 @@ function Panel() {
   const [warnings, setWarnings] = React.useState([])
   const [toast, setToast] = React.useState(null)
   const [armDelete, setArmDelete] = React.useState(false)
+  const [histOpen, setHistOpen] = React.useState(false)
+  const [histVersions, setHistVersions] = React.useState([])
+  const [histTrash, setHistTrash] = React.useState([])
+  const [histBusy, setHistBusy] = React.useState('')
   const [dir, setDir] = React.useState('')
   const [darkHost, setDarkHost] = React.useState(hostDark)
   const [themeMode, setThemeMode] = React.useState(() => {
@@ -135,11 +143,8 @@ function Panel() {
     return () => clearTimeout(timer)
   }, [armDelete])
 
-  const katexReady = useKatexReady()
-  const renderMath = React.useMemo(
-    () => (katexReady && window.katex ? comp.createMathRenderer(window.katex) : null),
-    [katexReady],
-  )
+  const katex = useKatex()
+  const renderMath = React.useMemo(() => (katex ? comp.createMathRenderer(katex) : null), [katex])
   const nameRef = React.useRef('')
   const timerRef = React.useRef(0)
   const docRef = React.useRef(null)
@@ -465,7 +470,9 @@ function Panel() {
       setConflict(null)
       setWarnings((loaded && loaded.warnings) || [])
       await openNamed(payload.name)
-      setStatus('已另存为「' + payload.name + '」')
+      const pretty = payload.name.replace(/\.mindmap\.json$/, '')
+      setStatus('已另存为「' + pretty + '」')
+      setToast({ text: '已另存为「' + pretty + '」，现在打开的就是这份副本' })
     } catch (err) {
       setStatus('另存失败：' + (err && err.message ? err.message : String(err)))
     }
@@ -558,6 +565,81 @@ function Panel() {
       setStatus('恢复失败：' + (err && err.message ? err.message : String(err)))
     }
   }, [toast, openNamed])
+
+  /* 历史版本 + 回收站：一个入口，两段清单 */
+  const loadHistory = React.useCallback(async () => {
+    setHistBusy('读取…')
+    try {
+      const [versions, trashed] = await Promise.all([
+        nameRef.current ? jget('/synapsis-api/history?name=' + encodeURIComponent(nameRef.current)) : Promise.resolve({ items: [] }),
+        jget('/synapsis-api/trash'),
+      ])
+      setHistVersions((versions && versions.items) || [])
+      setHistTrash((trashed && trashed.items) || [])
+      setHistBusy('')
+    } catch (err) {
+      setHistBusy('读不到历史：' + (err && err.message ? err.message : String(err)))
+    }
+  }, [])
+
+  const restoreVersion = React.useCallback(
+    async (file) => {
+      if (!nameRef.current) return
+      setHistBusy('恢复中…')
+      try {
+        /* 先把当前这版写下去，历史里才会有「恢复之前」那一份 */
+        await flush()
+        const res = await fetch('/synapsis-api/history/restore', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name: nameRef.current, file, baseToken: tokenRef.current }),
+        })
+        const payload = await res.json().catch(() => null)
+        if (!res.ok || (payload && payload.ok === false)) {
+          const code = (payload && payload.error) || 'HTTP ' + res.status
+          throw Object.assign(new Error(ERROR_TEXT[code] || code), { code })
+        }
+        tokenRef.current = payload.token
+        const loaded = await jget('/synapsis-api/load?name=' + encodeURIComponent(nameRef.current))
+        if (loaded && loaded.data) {
+          setDoc(loaded.data)
+          docRef.current = loaded.data
+          revRef.current = 0
+          savedRevRef.current = 0
+        }
+        setHistOpen(false)
+        setStatus('已回到那一版')
+        setToast({ text: '已回到所选版本（刚才那版留在历史里）' })
+      } catch (err) {
+        setHistBusy('恢复失败：' + (err && err.message ? err.message : String(err)))
+      }
+    },
+    [flush],
+  )
+
+  const restoreTrashed = React.useCallback(
+    async (file) => {
+      setHistBusy('放回来…')
+      try {
+        const res = await fetch('/synapsis-api/restore', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ file }),
+        })
+        const payload = await res.json().catch(() => null)
+        if (!res.ok || (payload && payload.ok === false)) {
+          const code = (payload && payload.error) || 'HTTP ' + res.status
+          throw Object.assign(new Error(ERROR_TEXT[code] || code), { code })
+        }
+        setHistBusy('')
+        await loadHistory()
+        setStatus('已放回：' + payload.name.replace(/\.mindmap\.json$/, ''))
+      } catch (err) {
+        setHistBusy('放回失败：' + (err && err.message ? err.message : String(err)))
+      }
+    },
+    [loadHistory],
+  )
 
   /* 撤销提示自己消失；报错提示留着，等用户重试或重新加载 */
   React.useEffect(() => {
@@ -814,6 +896,19 @@ function Panel() {
       'button',
       {
         className: 'sn-chip',
+        title: '历史版本与回收站',
+        onClick: () => {
+          setHistOpen(true)
+          loadHistory()
+        },
+        style: { opacity: 0.85 },
+      },
+      '历史',
+    ),
+    hh(
+      'button',
+      {
+        className: 'sn-chip',
         title: armDelete ? '再点一次就真的删了（会挪进库目录的 .trash）' : '删除这份图',
         onClick: () => (armDelete ? removeMap() : setArmDelete(true)),
         style: armDelete ? { color: '#b0413a', borderColor: 'rgba(176,65,58,.6)' } : { opacity: 0.7 },
@@ -878,6 +973,81 @@ function Panel() {
       )
     : null
 
+  /* 历史与回收站：一个面板里看两段，都能一键拿回来 */
+  const histDlg = histOpen
+    ? hh(
+        'div',
+        {
+          className: 'sn-histmask',
+          role: 'dialog',
+          'aria-modal': 'true',
+          'aria-label': '历史与回收站',
+          'data-open': '1',
+          onClick: () => setHistOpen(false),
+        },
+        hh(
+          'div',
+          { className: 'sn-histcard', onClick: (event) => event.stopPropagation() },
+          hh(
+            'div',
+            { className: 'sn-histhead' },
+            hh('span', null, '历史与回收站'),
+            hh('button', { className: 'sn-chip', onClick: () => setHistOpen(false) }, '关闭'),
+          ),
+          histBusy ? hh('div', { className: 'sn-histbusy' }, histBusy) : null,
+          hh(
+            'div',
+            { className: 'sn-histsect' },
+            hh('div', { className: 'sn-histlabel' }, '这份图的版本历史'),
+            histVersions.length
+              ? histVersions.map((item) =>
+                  hh(
+                    'div',
+                    { className: 'sn-histrow', key: item.file },
+                    hh(
+                      'span',
+                      { className: 'sn-histmeta' },
+                      (typeof item.at === 'number'
+                        ? new Date(item.at).toLocaleString('zh-CN', {
+                            month: 'numeric',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : String(item.at || '')) + (item.latest ? ' · 上一版' : ' · 检查点'),
+                    ),
+                    hh(
+                      'button',
+                      { className: 'sn-chip', onClick: () => restoreVersion(item.file) },
+                      '回到这一版',
+                    ),
+                  ),
+                )
+              : hh('div', { className: 'sn-histempty' }, '还没有历史快照——每次保存都会留一份（最近的每 5 分钟一个检查点）。'),
+          ),
+          hh(
+            'div',
+            { className: 'sn-histsect' },
+            hh('div', { className: 'sn-histlabel' }, '回收站'),
+            histTrash.length
+              ? histTrash.map((item) =>
+                  hh(
+                    'div',
+                    { className: 'sn-histrow', key: item.file },
+                    hh(
+                      'span',
+                      { className: 'sn-histmeta' },
+                      item.name.replace(/\.mindmap\.json$/, '') + ' · ' + Math.max(1, Math.round(item.size / 1024)) + ' KB',
+                    ),
+                    hh('button', { className: 'sn-chip', onClick: () => restoreTrashed(item.file) }, '放回来'),
+                  ),
+                )
+              : hh('div', { className: 'sn-histempty' }, '空的。删掉的图会先进这里，再点「放回来」就能回去。'),
+          ),
+        ),
+      )
+    : null
+
   const statusText = [status, warnings.length ? '已修复 ' + warnings.length + ' 处' : ''].filter(Boolean).join(' · ')
 
   return hh(
@@ -901,6 +1071,7 @@ function Panel() {
       }),
     ),
     banner,
+    histDlg,
     toastBar,
   )
 }

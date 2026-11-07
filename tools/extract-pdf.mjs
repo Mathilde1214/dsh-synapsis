@@ -1,13 +1,29 @@
-/* 从 PDF 抽正文，输出「按页分组」的纯文本：pages/<n>.txt + all.json */
+/* 从 PDF 抽正文，输出「按页分组」的纯文本：pages/<n>.txt + all.json
+   用法：node tools/extract-pdf.mjs <讲义.pdf> [输出目录] [最多几页]
+   pdfjs 不在本包内，用环境变量指过去：
+     SYNAPSIS_PDFJS</path/to/pdf.min.mjs>   （同目录要有 pdf.worker.min.mjs）
+   也可以先 npm i pdfjs-dist，再指 node_modules/pdfjs-dist/build/pdf.min.mjs。 */
 import fs from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const src = process.argv[2]
 const outDir = process.argv[3] || 'tmp/pdf'
 const maxPages = Number(process.argv[4] || 0)
 
-const pdfjs = await import('file:///E:/dsh工作空间/杂物/创造？！/synapsis/web/vendor/pdf.min.mjs')
-pdfjs.GlobalWorkerOptions.workerSrc = 'file:///E:/dsh工作空间/杂物/创造？！/synapsis/web/vendor/pdf.worker.min.mjs'
+const pdfjsEntry = process.env.SYNAPSIS_PDFJS
+if (!src) {
+  console.error('用法：node tools/extract-pdf.mjs <讲义.pdf> [输出目录] [最多几页]')
+  process.exit(2)
+}
+if (!pdfjsEntry) {
+  console.error('缺少 pdfjs：把 SYNAPSIS_PDFJS 指向 pdf.min.mjs（例如 npm i pdfjs-dist 后的 node_modules/pdfjs-dist/build/pdf.min.mjs）')
+  process.exit(2)
+}
+
+const pdfjs = await import(pathToFileURL(pdfjsEntry).href)
+const worker = path.join(path.dirname(pdfjsEntry), 'pdf.worker.min.mjs')
+if (fs.existsSync(worker)) pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(worker).href
 
 fs.mkdirSync(outDir, { recursive: true })
 const data = new Uint8Array(fs.readFileSync(src))

@@ -47,29 +47,15 @@ ${body}
       name: 'dsh-synapsis',
       inject: ['slots'],
       apply(ctx) {
-        /* 公式资源：插件自带 KaTeX，从自己的路由加载，卸载时一起摘掉 */
+        /* 只挂样式表：KaTeX 本体由面板用 import() 取模块，不往 window 上放全局变量 */
         ctx.effect(() => {
-          const head = document.head
           const link = document.createElement('link')
           link.rel = 'stylesheet'
           link.href = '/synapsis-api/katex/katex.min.css'
           link.setAttribute('data-synapsis-katex', '1')
-          head.appendChild(link)
-          const announce = () => window.dispatchEvent(new Event('synapsis:katex'))
-          let script = null
-          if (window.katex) {
-            announce()
-          } else {
-            script = document.createElement('script')
-            script.src = '/synapsis-api/katex/katex.min.js'
-            script.async = true
-            script.setAttribute('data-synapsis-katex', '1')
-            script.addEventListener('load', announce)
-            head.appendChild(script)
-          }
+          document.head.appendChild(link)
           return () => {
             link.remove()
-            if (script) script.remove()
           }
         })
         ctx.slots.inject('sidebar.panellist', () =>
