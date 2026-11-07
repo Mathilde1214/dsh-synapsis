@@ -709,7 +709,9 @@ function createMindMap(React) {
     return 'M ' + a.x.toFixed(1) + ' ' + a.y.toFixed(1) + ' Q ' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' + b.x.toFixed(1) + ' ' + b.y.toFixed(1)
   }
 
-  function relBlock(list, label, prefix) {
+  /* outgoing 为真时是「引出」那一栏：这条边从当前概念指出去，
+     写「需先学」会读成反的，所以前置类边只显示标题。 */
+  function relBlock(list, label, prefix, outgoing) {
     if (!list.length) return null
     return h(
       'div',
@@ -719,7 +721,9 @@ function createMindMap(React) {
         'div',
         { className: 'sn-rel' },
         list.map(function (item) {
-          var kind = item.edge.type === 'prereq' ? '需先学 ' : item.edge.type === 'contrast' ? '对比 ' : '参见 '
+          var kind = item.edge.type === 'prereq'
+            ? (outgoing ? '' : '需先学 ')
+            : item.edge.type === 'contrast' ? '对比 ' : '参见 '
           return h(
             'span',
             { key: item.edge.from + '-' + item.edge.to + '-' + item.dir, className: 'sn-chip', 'data-t': item.edge.type || 'related' },
@@ -2862,7 +2866,7 @@ function createMindMap(React) {
         )
       }
       var inBlock = relBlock(relations.into, '前置 · 引用它的')
-      var outBlock = relBlock(relations.out, '引出 · 它指向的')
+      var outBlock = relBlock(relations.out, '引出 · 它指向的', '', true)
       if (inBlock) blocks.push(React.cloneElement(inBlock, { key: 'in' }))
       if (outBlock) blocks.push(React.cloneElement(outBlock, { key: 'out' }))
       if (editable) {
