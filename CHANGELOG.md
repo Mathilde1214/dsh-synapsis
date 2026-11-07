@@ -2,6 +2,14 @@
 
 版本号规则：`0.x` 期间只有功能变化才升 minor，修 bug 与文档升 patch。
 
+## 0.29.0
+
+发到 npm 了，安装从此一条命令：`dsh plugin --profile desktop add dsh-synapsis`。
+
+- 包名 `dsh-synapsis`（npm 上原本空着）。
+- README 中英把 npm 安装提到第一位，GitHub 直装降为备选；「怎么更新」改成以 npm 为主。
+- 插件索引 `plugin-market/index.json` 的版本源从 `git` 改成 `npm`，Discover 页里看到的就是正式版。
+
 ## 0.28.0
 
 框选：`Shift` 在空白处拖一个矩形，框住的概念一次选上，接着就能批量删、批量打掌握度。

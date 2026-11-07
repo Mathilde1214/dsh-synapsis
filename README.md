@@ -107,7 +107,7 @@
 
 如果不想碰命令行，Desktop 的「插件」页面里也能装，效果一样。
 
-**从 npm 装（发布之后）**
+**从 npm 装（推荐）**
 
 ```sh
 dsh plugin --profile desktop add dsh-synapsis
@@ -115,13 +115,13 @@ dsh plugin --profile desktop add dsh-synapsis
 
 **怎么更新**
 
-- 用 GitHub 装的：把上面命令里的提交哈希换成新的，重跑一次即可（不钉哈希就是装 main 的最新一版）。
-- 用 npm 装的：`dsh plugin --profile desktop add dsh-synapsis@<版本>`，或先 `remove` 再 `add`。
+- 用 npm 装的：`dsh plugin --profile desktop add dsh-synapsis@<版本>`，或先 `remove` 再 `add`；不写版本就是最新版。
+- 用 GitHub 装的：把下面命令里的提交哈希换成新的，重跑一次即可（不钉哈希就是装 main 的最新一版）。
 - 用 tarball 装的：重新打包、重新 `add`。
 - 更新只替换 `node_modules` 里的插件代码，**库目录里的图一张都不会动**（见下面的「升级不会动你的图」）。
 - 更新完刷新宿主页面（桌面端 `Ctrl/Cmd+R`）。
 
-**从 GitHub 装（推荐，不需要任何构建）**
+**从 GitHub 装（备选，不需要任何构建）**
 
 ```sh
 dsh plugin --profile desktop add github:Mathilde1214/dsh-synapsis#<提交哈希>

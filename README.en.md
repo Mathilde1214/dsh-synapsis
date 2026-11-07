@@ -101,7 +101,15 @@ The repository root is the plugin package: `package.json` carries `dsh.bundle.pa
 
 Or skip the shell entirely and install from the app's "Plugins" page.
 
-**From GitHub (recommended, no build step)**
+**From npm (recommended)**
+
+```sh
+dsh plugin --profile desktop add dsh-synapsis
+```
+
+**Updating**: `dsh plugin --profile desktop add dsh-synapsis@<version>`, or `remove` then `add`. Nothing is pinned, so you always get the latest. Updates only replace the code under `node_modules` — the maps in your library directory are never touched.
+
+**From GitHub (alternative, no build step)**
 
 ```sh
 dsh plugin --profile desktop add github:Mathilde1214/dsh-synapsis#<commit>
