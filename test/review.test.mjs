@@ -166,7 +166,7 @@ test('到期的排前面，没到期的按到期时间排队', () => {
   ]
   const ids = comp.sortReviewPool(nodes, null, now).map((x) => x.id)
   /* 没设 dueAt 的视为到期；到期的里 dueAt 早的在前；没到期的排最后 */
-  assert.deepEqual(ids, ['fresh', 'fuzzy-overdue', 'soon', 'mastered-later'])
+  assert.deepEqual(ids, ['fuzzy-overdue', 'fresh', 'soon', 'mastered-later'])
 })
 
 test('isDue / dueAtOf 对坏值不炸', () => {
@@ -221,4 +221,18 @@ test('排序不会改动调用方传进来的数组', () => {
     input.map((x) => x.id),
     snapshot,
   )
+})
+
+test('昨天打了「没印象」的卡，不会被一堆新卡挤出这一轮', () => {
+  const now = Date.UTC(2026, 0, 10, 0, 0, 0)
+  const day = 86400000
+  const nodes = [
+    { id: 'overdue', parent: 'root', title: 'zzz 昨天没印象', definition: 'x', mastery: 1, dueAt: new Date(now - day).toISOString() },
+  ]
+  for (let i = 0; i < 20; i += 1) {
+    nodes.push({ id: 'new-' + i, parent: 'root', title: 'aaa 新概念 ' + i, definition: 'x', mastery: 0 })
+  }
+  const ids = comp.sortReviewPool(nodes, null, now).map((x) => x.id)
+  assert.equal(ids[0], 'overdue')
+  assert.ok(ids.slice(0, 15).includes('overdue'))
 })

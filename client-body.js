@@ -278,7 +278,7 @@ function Panel() {
       const clean = await flush()
       if (!clean) {
         setStatus('有改动没保存成功，先别切图')
-        return
+        return false
       }
       setStatus('读取中…')
       setError('')
@@ -325,6 +325,7 @@ function Panel() {
           setWarnings([])
           setStatus('')
         }
+        return true
       } catch (err) {
         const code = err && err.code
         if (code === 'bad_json' || code === 'bad_doc') {
@@ -333,6 +334,7 @@ function Panel() {
           setError(err && err.message ? err.message : String(err))
         }
         setStatus('')
+        return false
       }
     },
     [flush],
@@ -356,7 +358,10 @@ function Panel() {
           focusSeenRef.current = next.at
           window.localStorage.setItem('synapsis.focusSeen', String(next.at))
           if (next.name && next.name !== nameRef.current) {
-            await openNamed(next.name)
+            /* 切图没成功（保存冲突、坏图、读失败）就别往下跳：
+               那个 nodeId 属于另一张图，套到当前图上会跳到风马牛不相及的节点。 */
+            const switched = await openNamed(next.name)
+            if (!switched) return
           }
           if (next.nodeId) setFocusReq({ id: next.nodeId, at: next.at })
         }
@@ -807,13 +812,21 @@ function Panel() {
                   },
                 },
                 hh('option', { value: '' }, '选一张健康的图…'),
-                files.map((file) =>
-                  hh(
+                files.map((file) => {
+                  /* 和顶栏下拉一样的口径：坏没坏、多少概念、什么时候改的 */
+                  const when = file.mtime
+                    ? new Date(file.mtime).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+                    : ''
+                  const marks = [file.broken ? '⚠ 读不出来' : '', file.nodes ? file.nodes + ' 个概念' : '', when]
+                    .filter(Boolean)
+                    .join(' · ')
+                  const label = (file.broken ? '⚠ ' : '') + file.title
+                  return hh(
                     'option',
                     { key: file.name, value: file.name },
-                    (file.broken ? '⚠ ' : '') + file.title + (file.broken ? '（损坏）' : ''),
-                  ),
-                ),
+                    marks ? label + '（' + marks + '）' : label,
+                  )
+                }),
               ),
             )
           : null,
@@ -1069,8 +1082,13 @@ function Panel() {
                     ),
                     hh(
                       'button',
-                      { className: 'sn-chip', onClick: () => restoreVersion(item.file) },
-                      '回到这一版',
+                      {
+                        className: 'sn-chip',
+                        /* 有未保存的改动时先说清会发生什么，免得以为刚写的笔记被覆盖 */
+                        title: revRef.current !== savedRevRef.current ? '会先保存现在这版，再切到这个快照' : '',
+                        onClick: () => restoreVersion(item.file),
+                      },
+                      revRef.current !== savedRevRef.current ? '会先存现在这版，再回到这版' : '回到这一版',
                     ),
                   ),
                 )

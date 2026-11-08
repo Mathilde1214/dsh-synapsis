@@ -237,16 +237,17 @@ npm run dev       # node tools/dev-server.mjs, then open http://127.0.0.1:7788/
 
 `npm run dev` uses `.dev-data/` inside the repo, so it never touches your own library; point `SYNAPSIS_DATA` elsewhere if you want a different folder.
 
+The plugin has zero runtime dependencies (only `@deepseek-ai/schemastery` as a peer, provided by the host), so you don't need `npm install` first: there is no `package-lock.json` and `npm ci` will fail — `npm test` and `npm run build` just need Node 22+.
+
 `files` lists only what's needed at runtime, so `core/`, `tools/` and `test/` stay out of the npm package; what lands on someone else's machine is the output alone.
 
 ## Known limits
 
 - The panel occupies the host's main panel, so it and the conversation view are mutually exclusive — you switch back and forth. On the desktop app the port is random and the login ticket never reaches a normal browser, so "two tabs, one watching the map while the other chats" only works with `dsh web`.
 - Relation edges only surface near the focus; otherwise a few hundred nodes turn into yarn. To see a particular relation, go into its chapter first.
-- Multi-select isn't implemented yet.
 - Review schedules by due date plus mastery; it is not a full SM-2 model with difficulty factors, and a round still caps at fifteen cards.
 - The outline view is read-only; edits still happen on the canvas.
-- The outline view is read-only; edits still happen on the canvas.
+- The UI is Chinese only for now.
 - UI copy is Chinese only (`locale/en.json` holds plugin metadata only).
 - Interface copy is Chinese only (`locale/en.json` holds plugin metadata, not UI strings).
 

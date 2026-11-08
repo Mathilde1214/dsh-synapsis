@@ -101,11 +101,18 @@ function createMindMap(React) {
       if (n.mastery === 0) return reviewed(n) ? 1 : 2
       return 3
     }
+    /* 三档：① 排过期、确实到点的（dueAt 早的先）② 从没排过期的
+       ③ 排过期但还没到点的。没有 dueAt 的不能当成「早就过期」，
+       否则新概念会把昨天打了「没印象」的卡挤到名额之外。 */
+    var tierOf = function (n) {
+      var at = dueAtOf(n)
+      if (!at) return 1
+      return at <= stamp ? 0 : 2
+    }
     return pool.sort(function (a, b) {
-      /* 到期的排前面；同为到期（或都没到期）再按 dueAt 早的优先 */
-      var da = isDue(a, stamp) ? 0 : 1
-      var db = isDue(b, stamp) ? 0 : 1
-      if (da !== db) return da - db
+      var ta2 = tierOf(a)
+      var tb2 = tierOf(b)
+      if (ta2 !== tb2) return ta2 - tb2
       var ta = dueAtOf(a)
       var tb = dueAtOf(b)
       if (ta !== tb) return ta - tb
@@ -466,7 +473,7 @@ function createMindMap(React) {
     '.sn-card[data-focus="1"]{background:var(--sn-surface-focus);border-color:var(--sn-line-strong);}',
     '.sn-card[data-dim="1"]{opacity:.55;}',
     '.sn-card[data-dot="1"]{border-radius:50%;background:var(--sn-dot);border-color:var(--sn-line);}',
-    ".sn-title{font-family:'KaiTi','STKaiti','Songti SC',serif;font-weight:700;line-height:1.15;padding:0 .14em;",
+    ".sn-title{font-family:var(--sn-title-font,var(--sn-font,'KaiTi','STKaiti','Songti SC',serif));font-weight:700;line-height:1.15;padding:0 .14em;",
     'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
     '.sn-title[data-wrap="1"]{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;',
     '-webkit-line-clamp:2;text-align:center;}',
@@ -554,7 +561,7 @@ function createMindMap(React) {
     /* 搜索 */
     '.sn-searchbtn{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border-radius:6px;flex:none;',
     'border:1px solid rgba(120,100,70,.24);background:transparent;color:var(--sn-ink-2);font:inherit;font-size:12px;cursor:pointer;}',
-    '.sn-searchbtn kbd{font:inherit;font-size:10.5px;opacity:.62;}',
+    '.sn-searchbtn kbd{font:inherit;font-size:11.5px;opacity:.62;}',
     '.sn-searchbtn[data-on="1"]{background:rgba(190,128,35,.16);}',
     '.sn-exportwrap{position:relative;flex:none;}',
     '.sn-exportmenu{position:absolute;right:0;top:30px;min-width:140px;display:flex;flex-direction:column;padding:4px;',
@@ -639,7 +646,7 @@ function createMindMap(React) {
     '.sn-sethint{font-size:12px;opacity:.55;}',
     '.sn-setrange{width:132px;accent-color:var(--sn-accent);}',
     '.sn-impdlg{max-width:520px;}',
-    '.sn-rvhead .sn-rvmore{margin-left:10px;font-size:11.5px;opacity:.62;}',
+    '.sn-rvhead .sn-rvmore{margin-left:10px;font-size:12px;opacity:.62;}',
     '.sn-histmask{position:absolute;inset:0;z-index:26;display:flex;align-items:flex-start;justify-content:center;padding:56px 16px 16px;background:rgba(40,32,24,.28);}',
     '.sn-histcard{width:min(620px,calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;background:var(--sn-surface,#fffdf6);color:var(--sn-ink,#2f2a24);border:1px solid var(--sn-line,rgba(120,100,70,.24));border-radius:10px;box-shadow:0 18px 42px rgba(0,0,0,.26);padding:16px 20px 18px;}',
     '.sn-histhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;}',
@@ -1223,8 +1230,14 @@ function createMindMap(React) {
         var nodesNow = data && data.nodes ? data.nodes : []
         var now = Date.now()
         var pool = sortReviewPool(nodesNow, scope, now)
+        /* 分开数：真到了复习时间的 / 还没排过期的新卡。
+           「没 dueAt」只等于「没学过」，不能算成「早就过期」。 */
         var dueCount = pool.filter(function (n) {
-          return isDue(n, now)
+          var at = dueAtOf(n)
+          return at > 0 && at <= now
+        }).length
+        var freshCount = pool.filter(function (n) {
+          return !dueAtOf(n)
         }).length
         /* 一张可复习的都没有时也要把卡弹出来，告诉用户为什么是空的 */
         setReview({
@@ -1234,6 +1247,7 @@ function createMindMap(React) {
           /* 池子有多大也要记住：卡上要说清「还有多少没进这一轮」 */
           poolSize: pool.length,
           dueCount: dueCount,
+          freshCount: freshCount,
           graded: {},
           scopeId: scopeKey,
           i: 0,
@@ -1254,10 +1268,13 @@ function createMindMap(React) {
         }
         var graded = Object.assign({}, review.graded)
         if (id) graded[id] = level
+        /* 评过的新卡就从「新学」里减掉；已经排过期的不动那一栏 */
+        var wasFresh = id ? !dueAtOf(nodesById.get(id)) : false
         setReview({
           queue: review.queue,
           poolSize: review.poolSize,
-          dueCount: review.dueCount,
+          dueCount: Math.max(0, (review.dueCount || 0) - (id && !wasFresh ? 1 : 0)),
+          freshCount: Math.max(0, (review.freshCount || 0) - (wasFresh ? 1 : 0)),
           graded: graded,
           scopeId: review.scopeId,
           i: review.i + 1,
@@ -1275,17 +1292,19 @@ function createMindMap(React) {
         if (id) {
           updateNode(id, { dueAt: new Date(Date.now() + 86400000).toISOString() }, 'defer:' + id)
         }
+        var wasFresh2 = id ? !dueAtOf(nodesById.get(id)) : false
         setReview({
           queue: review.queue,
           poolSize: review.poolSize,
-          dueCount: Math.max(0, (review.dueCount || 0) - (id ? 1 : 0)),
+          dueCount: Math.max(0, (review.dueCount || 0) - (id && !wasFresh2 ? 1 : 0)),
+          freshCount: Math.max(0, (review.freshCount || 0) - (wasFresh2 ? 1 : 0)),
           graded: Object.assign({}, review.graded),
           scopeId: review.scopeId,
           i: review.i + 1,
           shown: false,
         })
       },
-      [review, updateNode],
+      [review, updateNode, nodesById],
     )
 
     /* 这一轮里「没印象 / 有点模糊」的，原样再来一遍（顺序按刚才评的先后） */
@@ -1294,7 +1313,7 @@ function createMindMap(React) {
         if (!review) return
         var weak = weakReview(review)
         if (!weak.length) return
-        setReview({ queue: weak, poolSize: weak.length, dueCount: weak.length, graded: {}, scopeId: review.scopeId, i: 0, shown: false })
+        setReview({ queue: weak, poolSize: weak.length, dueCount: weak.length, freshCount: 0, graded: {}, scopeId: review.scopeId, i: 0, shown: false })
         setRvPos({ x: 0, y: 0 })
       },
       [review],
@@ -2297,6 +2316,9 @@ function createMindMap(React) {
         for (var i = 0; i < ids.length; i++) marked[ids[i]] = true
         var nodes = data.nodes.map(function (n) {
           if (!marked[n.id]) return n
+          /* 框选一章时常常把「只有标题的章/主题」也框进来：它们进不了复习队列，
+             打掌握度没有意义，跳过（正文有内容的才算）。 */
+          if (!hasSomethingToSay(n)) return n
           var copy = {}
           for (var k in n) copy[k] = n[k]
           copy.mastery = level
@@ -2442,7 +2464,7 @@ function createMindMap(React) {
         for (var li = 0; li < lines.length; li++) {
           var ly = y + (li - (lines.length - 1) / 2) * fs * 1.18 + fs * 0.34
           parts.push(
-            '<text x="' + x.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" font-family="KaiTi, STKaiti, \'Noto Serif SC\', serif" font-size="' + fs.toFixed(1) + '" fill="' + EXPORT_INK + '">' + escXml(lines[li]) + '</text>',
+            '<text x="' + x.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" font-family="system-ui, -apple-system, \'Segoe UI\', \'Microsoft YaHei\', \'PingFang SC\', \'Noto Sans CJK SC\', sans-serif" font-size="' + fs.toFixed(1) + '" fill="' + EXPORT_INK + '">' + escXml(lines[li]) + '</text>',
           )
         }
       }
@@ -3799,7 +3821,10 @@ function createMindMap(React) {
               ? h('span', { className: 'sn-rvmore' }, '池里还有 ' + (review.poolSize - total) + ' 个，下一轮接着来')
               : null,
             review.dueCount
-              ? h('span', { className: 'sn-rvmore', 'data-due': '1' }, '到期 ' + review.dueCount + ' 个')
+              ? h('span', { className: 'sn-rvmore', 'data-due': '1' }, '该复习 ' + review.dueCount + ' 个')
+              : null,
+            review.freshCount
+              ? h('span', { className: 'sn-rvmore', 'data-fresh': '1' }, '新学 ' + review.freshCount + ' 个')
               : null,
                     review.scopeId
                       ? h(
@@ -3920,6 +3945,10 @@ function createMindMap(React) {
             'div',
             {
               className: 'sn-searchwrap',
+              role: 'dialog',
+              'aria-modal': 'true',
+              'aria-label': '搜索概念',
+              'data-open': '1',
               onMouseDown: function (event) {
                 if (event.target === event.currentTarget) setSearchOpen(false)
               },
@@ -4573,7 +4602,7 @@ function Panel() {
       const clean = await flush()
       if (!clean) {
         setStatus('有改动没保存成功，先别切图')
-        return
+        return false
       }
       setStatus('读取中…')
       setError('')
@@ -4620,6 +4649,7 @@ function Panel() {
           setWarnings([])
           setStatus('')
         }
+        return true
       } catch (err) {
         const code = err && err.code
         if (code === 'bad_json' || code === 'bad_doc') {
@@ -4628,6 +4658,7 @@ function Panel() {
           setError(err && err.message ? err.message : String(err))
         }
         setStatus('')
+        return false
       }
     },
     [flush],
@@ -4651,7 +4682,10 @@ function Panel() {
           focusSeenRef.current = next.at
           window.localStorage.setItem('synapsis.focusSeen', String(next.at))
           if (next.name && next.name !== nameRef.current) {
-            await openNamed(next.name)
+            /* 切图没成功（保存冲突、坏图、读失败）就别往下跳：
+               那个 nodeId 属于另一张图，套到当前图上会跳到风马牛不相及的节点。 */
+            const switched = await openNamed(next.name)
+            if (!switched) return
           }
           if (next.nodeId) setFocusReq({ id: next.nodeId, at: next.at })
         }
@@ -5102,13 +5136,21 @@ function Panel() {
                   },
                 },
                 hh('option', { value: '' }, '选一张健康的图…'),
-                files.map((file) =>
-                  hh(
+                files.map((file) => {
+                  /* 和顶栏下拉一样的口径：坏没坏、多少概念、什么时候改的 */
+                  const when = file.mtime
+                    ? new Date(file.mtime).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
+                    : ''
+                  const marks = [file.broken ? '⚠ 读不出来' : '', file.nodes ? file.nodes + ' 个概念' : '', when]
+                    .filter(Boolean)
+                    .join(' · ')
+                  const label = (file.broken ? '⚠ ' : '') + file.title
+                  return hh(
                     'option',
                     { key: file.name, value: file.name },
-                    (file.broken ? '⚠ ' : '') + file.title + (file.broken ? '（损坏）' : ''),
-                  ),
-                ),
+                    marks ? label + '（' + marks + '）' : label,
+                  )
+                }),
               ),
             )
           : null,
@@ -5364,8 +5406,13 @@ function Panel() {
                     ),
                     hh(
                       'button',
-                      { className: 'sn-chip', onClick: () => restoreVersion(item.file) },
-                      '回到这一版',
+                      {
+                        className: 'sn-chip',
+                        /* 有未保存的改动时先说清会发生什么，免得以为刚写的笔记被覆盖 */
+                        title: revRef.current !== savedRevRef.current ? '会先保存现在这版，再切到这个快照' : '',
+                        onClick: () => restoreVersion(item.file),
+                      },
+                      revRef.current !== savedRevRef.current ? '会先存现在这版，再回到这版' : '回到这一版',
                     ),
                   ),
                 )
